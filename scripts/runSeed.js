@@ -2,6 +2,7 @@ const { seedBranding } = require('./seedBranding');
 const { seedOffers } = require('./seedOffers');
 const { seedCards } = require('./seedCards');
 const { updateCardBranding } = require('./updateCardBranding');
+const { seedAreas } = require('./seedAreas');
 
 async function main() {
   console.log('🌱 Starting database seeding...\n');
@@ -11,6 +12,7 @@ async function main() {
     await seedCards();
     await updateCardBranding();
     await seedOffers();
+    await seedAreas();
     console.log('\n✅ All seeding completed!');
     process.exit(0);
   } catch (error) {

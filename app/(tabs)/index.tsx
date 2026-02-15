@@ -115,29 +115,19 @@ export default function HomeScreen() {
               </Text>
             </View>
             
-            {location && (
-              <TouchableOpacity style={styles.locationBadge}>
+            {location?.area && (
+              <View style={styles.locationBadge}>
                 <LinearGradient
                   colors={['rgba(155, 255, 50, 0.1)', 'rgba(61, 238, 255, 0.1)']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={styles.locationGradient}
                 >
-                  <Text style={styles.locationEmoji}>
-                    {location.area?.emoji || '📍'}
+                  <Text style={[styles.locationText, { color: branding.success }]}>
+                    {location.area.name}
                   </Text>
-                  <View>
-                    <Text style={[styles.locationText, { color: branding.success }]}>
-                      {location.area?.name || location.city}
-                    </Text>
-                    {location.area && (
-                      <Text style={[styles.locationSubtext, { color: branding.textSecondary }]}>
-                        {location.area.nameAr}
-                      </Text>
-                    )}
-                  </View>
                 </LinearGradient>
-              </TouchableOpacity>
+              </View>
             )}
           </View>
 
@@ -260,11 +250,9 @@ const styles = StyleSheet.create({
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 },
   greeting: { fontSize: 14, marginBottom: 4 },
   userName: { fontSize: 28, fontWeight: 'bold' },
-  locationBadge: { borderRadius: 16, overflow: 'hidden', maxWidth: 180 },
-  locationGradient: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, gap: 8 },
-  locationEmoji: { fontSize: 20 },
+  locationBadge: { borderRadius: 12, overflow: 'hidden' },
+  locationGradient: { paddingHorizontal: 12, paddingVertical: 8 },
   locationText: { fontSize: 13, fontWeight: '600' },
-  locationSubtext: { fontSize: 10, marginTop: 2 },
   guestBanner: { borderRadius: 16, overflow: 'hidden' },
   guestBannerGradient: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16 },
   guestBannerContent: { flexDirection: 'row', alignItems: 'center', flex: 1 },

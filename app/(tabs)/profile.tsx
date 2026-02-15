@@ -1,39 +1,82 @@
-import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { auth, db } from '../../firebaseConfig';
 import { signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { getAppBranding, AppBranding } from '../../services/branding';
-import { getUserCards } from '../../services/cards';
+
+interface UserProfile {
+  firstName: string;
+  lastName: string;
+  email?: string;
+  phoneNumber?: string;
+  country?: string;
+}
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const user = auth.currentUser;
   const [branding, setBranding] = useState<AppBranding | null>(null);
-  const [cardCount, setCardCount] = useState(0);
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     loadData();
   }, []);
 
+  useFocusEffect(
+    useCallback(() => {
+      loadProfile();
+    }, [])
+  );
+
   async function loadData() {
     const app = await getAppBranding();
     setBranding(app);
+    await loadProfile();
+  }
 
-    if (user) {
-      const cards = await getUserCards();
-      setCardCount(cards.length);
+  async function loadProfile() {
+    const user = auth.currentUser;
+    if (!user) {
+      setProfile(null);
+      return;
+    }
 
-      // Get phone number from Firestore
+    try {
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       if (userDoc.exists()) {
-        setPhoneNumber(userDoc.data().phoneNumber || '');
+        const data = userDoc.data();
+        setProfile({
+          firstName: data.firstName || '',
+          lastName: data.lastName || '',
+          email: data.email || user.email || '',
+          phoneNumber: data.phoneNumber || user.phoneNumber || '',
+          country: data.country || 'AE',
+        });
+      } else {
+        // Fallback to auth data
+        const displayName = user.displayName || '';
+        const nameParts = displayName.split(' ');
+        setProfile({
+          firstName: nameParts[0] || 'User',
+          lastName: nameParts.slice(1).join(' ') || '',
+          email: user.email || '',
+          phoneNumber: user.phoneNumber || '',
+        });
       }
+    } catch (error) {
+      console.error('Error loading profile:', error);
     }
+  }
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    await loadProfile();
+    setRefreshing(false);
   }
 
   async function handleLogout() {
@@ -46,12 +89,8 @@ export default function ProfileScreen() {
           text: 'Logout',
           style: 'destructive',
           onPress: async () => {
-            try {
-              await signOut(auth);
-              router.replace('/auth/welcome');
-            } catch (error) {
-              console.error('Logout error:', error);
-            }
+            await signOut(auth);
+            router.replace('/auth/welcome');
           },
         },
       ]
@@ -60,57 +99,55 @@ export default function ProfileScreen() {
 
   if (!branding) {
     return (
-      <View style={[styles.container, styles.center]}>
-        <Text style={styles.loadingText}>Loading...</Text>
+      <View style={styles.loading}>
+        <Text style={{ color: '#9BFF32' }}>Loading...</Text>
       </View>
     );
   }
 
-  if (!user) {
+  const isGuest = !auth.currentUser;
+
+  if (isGuest) {
     return (
       <View style={[styles.container, { backgroundColor: branding.backgroundColor }]}>
         <LinearGradient
           colors={['#060612', '#0a0a1a', '#060612']}
           style={StyleSheet.absoluteFill}
         />
-        
-        <View style={styles.guestState}>
-          <View style={styles.guestAvatarContainer}>
+
+        <View style={styles.guestContainer}>
+          <View style={styles.guestIcon}>
             <LinearGradient
               colors={['rgba(155, 255, 50, 0.1)', 'rgba(61, 238, 255, 0.1)']}
-              style={styles.guestAvatar}
+              style={styles.guestIconGradient}
             >
               <Ionicons name="person-outline" size={64} color={branding.success} />
             </LinearGradient>
           </View>
-          
+
           <Text style={[styles.guestTitle, { color: branding.textPrimary }]}>
-            Guest Mode
+            Login to Continue
           </Text>
           <Text style={[styles.guestSubtitle, { color: branding.textSecondary }]}>
-            Login to access your profile and{'\n'}personalized offers
+            Access your cards, rewards, and personalized offers
           </Text>
-          
-          <TouchableOpacity 
-            style={styles.loginButtonContainer}
+
+          <TouchableOpacity
+            style={styles.loginButton}
             onPress={() => router.push('/auth/welcome')}
           >
             <LinearGradient
               colors={branding.primaryGradient.colors as [string, string]}
-              style={styles.loginButton}
+              style={styles.loginButtonGradient}
             >
               <Ionicons name="log-in" size={24} color="#060612" />
-              <Text style={styles.loginButtonText}>Login to Continue</Text>
+              <Text style={styles.loginButtonText}>Login with Phone</Text>
             </LinearGradient>
           </TouchableOpacity>
         </View>
       </View>
     );
   }
-
-  const initials = phoneNumber 
-    ? phoneNumber.slice(-4)
-    : 'U';
 
   return (
     <View style={[styles.container, { backgroundColor: branding.backgroundColor }]}>
@@ -119,212 +156,151 @@ export default function ProfileScreen() {
         style={StyleSheet.absoluteFill}
       />
 
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Header with Avatar */}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={branding.success}
+          />
+        }
+      >
+        {/* Header */}
         <View style={styles.header}>
           <View style={styles.avatarContainer}>
             <LinearGradient
               colors={branding.primaryGradient.colors as [string, string]}
               style={styles.avatar}
             >
-              <Text style={styles.avatarText}>{initials}</Text>
+              <Text style={styles.avatarText}>
+                {profile?.firstName?.charAt(0).toUpperCase() || 'U'}
+              </Text>
             </LinearGradient>
-            <View style={styles.statusBadge}>
-              <View style={styles.statusDot} />
-            </View>
           </View>
-          
+
           <Text style={[styles.name, { color: branding.textPrimary }]}>
-            {phoneNumber || 'User'}
+            {profile?.firstName} {profile?.lastName}
           </Text>
-          <Text style={[styles.email, { color: branding.textSecondary }]}>
-            Verified Account
-          </Text>
-
-          {/* Stats */}
-          <View style={styles.statsContainer}>
-            <View style={styles.statCard}>
-              <LinearGradient
-                colors={['rgba(155, 255, 50, 0.1)', 'rgba(61, 238, 255, 0.1)']}
-                style={styles.statGradient}
-              >
-                <Ionicons name="card" size={24} color={branding.success} />
-                <Text style={[styles.statValue, { color: branding.textPrimary }]}>
-                  {cardCount}
-                </Text>
-                <Text style={[styles.statLabel, { color: branding.textSecondary }]}>
-                  Cards
-                </Text>
-              </LinearGradient>
-            </View>
-
-            <View style={styles.statCard}>
-              <LinearGradient
-                colors={['rgba(255, 151, 235, 0.1)', 'rgba(217, 148, 255, 0.1)']}
-                style={styles.statGradient}
-              >
-                <Ionicons name="pricetag" size={24} color="#FF97EB" />
-                <Text style={[styles.statValue, { color: branding.textPrimary }]}>
-                  {Math.floor(Math.random() * 20 + 10)}
-                </Text>
-                <Text style={[styles.statLabel, { color: branding.textSecondary }]}>
-                  Offers
-                </Text>
-              </LinearGradient>
-            </View>
-          </View>
+          
+          {profile?.phoneNumber && (
+            <Text style={[styles.phone, { color: branding.textSecondary }]}>
+              {profile.phoneNumber}
+            </Text>
+          )}
         </View>
 
-        {/* Menu Sections */}
-        <View style={styles.sections}>
-          {/* Account Section */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: branding.textSecondary }]}>
-              ACCOUNT
-            </Text>
-            
-            <View style={[styles.menuCard, { backgroundColor: branding.surfaceColor }]}>
-              <TouchableOpacity style={styles.menuItem}>
-                <View style={styles.menuIconContainer}>
-                  <LinearGradient
-                    colors={['rgba(155, 255, 50, 0.1)', 'rgba(61, 238, 255, 0.1)']}
-                    style={styles.menuIconGradient}
-                  >
-                    <Ionicons name="person-outline" size={20} color={branding.success} />
-                  </LinearGradient>
-                </View>
-                <Text style={[styles.menuText, { color: branding.textPrimary }]}>
-                  Personal Information
-                </Text>
-                <Ionicons name="chevron-forward" size={20} color={branding.textSecondary} />
-              </TouchableOpacity>
+        {/* Profile Info */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: branding.textPrimary }]}>
+            Account Information
+          </Text>
 
-              <View style={[styles.divider, { backgroundColor: branding.backgroundColor }]} />
-
-              <TouchableOpacity style={styles.menuItem}>
-                <View style={styles.menuIconContainer}>
-                  <LinearGradient
-                    colors={['rgba(61, 238, 255, 0.1)', 'rgba(155, 255, 50, 0.1)']}
-                    style={styles.menuIconGradient}
-                  >
-                    <Ionicons name="shield-checkmark-outline" size={20} color="#3DEEFF" />
-                  </LinearGradient>
-                </View>
-                <Text style={[styles.menuText, { color: branding.textPrimary }]}>
-                  Privacy & Security
+          {profile?.email && (
+            <View style={[styles.infoCard, { backgroundColor: branding.surfaceColor }]}>
+              <Ionicons name="mail" size={20} color={branding.textSecondary} />
+              <View style={styles.infoContent}>
+                <Text style={[styles.infoLabel, { color: branding.textSecondary }]}>
+                  Email
                 </Text>
-                <Ionicons name="chevron-forward" size={20} color={branding.textSecondary} />
-              </TouchableOpacity>
+                <Text style={[styles.infoValue, { color: branding.textPrimary }]}>
+                  {profile.email}
+                </Text>
+              </View>
             </View>
-          </View>
+          )}
 
-          {/* Preferences Section */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: branding.textSecondary }]}>
-              PREFERENCES
-            </Text>
-            
-            <View style={[styles.menuCard, { backgroundColor: branding.surfaceColor }]}>
-              <TouchableOpacity style={styles.menuItem}>
-                <View style={styles.menuIconContainer}>
-                  <LinearGradient
-                    colors={['rgba(255, 151, 235, 0.1)', 'rgba(217, 148, 255, 0.1)']}
-                    style={styles.menuIconGradient}
-                  >
-                    <Ionicons name="notifications-outline" size={20} color="#FF97EB" />
-                  </LinearGradient>
-                </View>
-                <Text style={[styles.menuText, { color: branding.textPrimary }]}>
-                  Notifications
+          {profile?.phoneNumber && (
+            <View style={[styles.infoCard, { backgroundColor: branding.surfaceColor }]}>
+              <Ionicons name="call" size={20} color={branding.textSecondary} />
+              <View style={styles.infoContent}>
+                <Text style={[styles.infoLabel, { color: branding.textSecondary }]}>
+                  Phone Number
                 </Text>
-                <Ionicons name="chevron-forward" size={20} color={branding.textSecondary} />
-              </TouchableOpacity>
-
-              <View style={[styles.divider, { backgroundColor: branding.backgroundColor }]} />
-
-              <TouchableOpacity style={styles.menuItem}>
-                <View style={styles.menuIconContainer}>
-                  <LinearGradient
-                    colors={['rgba(255, 239, 160, 0.1)', 'rgba(255, 169, 124, 0.1)']}
-                    style={styles.menuIconGradient}
-                  >
-                    <Ionicons name="location-outline" size={20} color="#FFEFA0" />
-                  </LinearGradient>
-                </View>
-                <Text style={[styles.menuText, { color: branding.textPrimary }]}>
-                  Location Services
+                <Text style={[styles.infoValue, { color: branding.textPrimary }]}>
+                  {profile.phoneNumber}
                 </Text>
-                <Ionicons name="chevron-forward" size={20} color={branding.textSecondary} />
-              </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          )}
 
-          {/* Support Section */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: branding.textSecondary }]}>
-              SUPPORT
-            </Text>
-            
-            <View style={[styles.menuCard, { backgroundColor: branding.surfaceColor }]}>
-              <TouchableOpacity style={styles.menuItem}>
-                <View style={styles.menuIconContainer}>
-                  <LinearGradient
-                    colors={['rgba(61, 238, 255, 0.1)', 'rgba(155, 255, 50, 0.1)']}
-                    style={styles.menuIconGradient}
-                  >
-                    <Ionicons name="help-circle-outline" size={20} color="#3DEEFF" />
-                  </LinearGradient>
-                </View>
-                <Text style={[styles.menuText, { color: branding.textPrimary }]}>
-                  Help Center
+          {profile?.country && (
+            <View style={[styles.infoCard, { backgroundColor: branding.surfaceColor }]}>
+              <Ionicons name="location" size={20} color={branding.textSecondary} />
+              <View style={styles.infoContent}>
+                <Text style={[styles.infoLabel, { color: branding.textSecondary }]}>
+                  Country
                 </Text>
-                <Ionicons name="chevron-forward" size={20} color={branding.textSecondary} />
-              </TouchableOpacity>
-
-              <View style={[styles.divider, { backgroundColor: branding.backgroundColor }]} />
-
-              <TouchableOpacity style={styles.menuItem}>
-                <View style={styles.menuIconContainer}>
-                  <LinearGradient
-                    colors={['rgba(155, 255, 50, 0.1)', 'rgba(61, 238, 255, 0.1)']}
-                    style={styles.menuIconGradient}
-                  >
-                    <Ionicons name="information-circle-outline" size={20} color={branding.success} />
-                  </LinearGradient>
-                </View>
-                <Text style={[styles.menuText, { color: branding.textPrimary }]}>
-                  About
+                <Text style={[styles.infoValue, { color: branding.textPrimary }]}>
+                  {profile.country === 'AE' ? '🇦🇪 UAE' : '🇸🇦 Saudi Arabia'}
                 </Text>
-                <Ionicons name="chevron-forward" size={20} color={branding.textSecondary} />
-              </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          )}
+        </View>
 
-          {/* Logout Button */}
-          <TouchableOpacity 
+        {/* Settings */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: branding.textPrimary }]}>
+            Settings
+          </Text>
+
+          <TouchableOpacity
+            style={[styles.settingCard, { backgroundColor: branding.surfaceColor }]}
+            onPress={() => router.push('/auth/setup-profile')}
+          >
+            <Ionicons name="person" size={20} color={branding.textSecondary} />
+            <Text style={[styles.settingText, { color: branding.textPrimary }]}>
+              Edit Profile
+            </Text>
+            <Ionicons name="chevron-forward" size={20} color={branding.textSecondary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.settingCard, { backgroundColor: branding.surfaceColor }]}
+          >
+            <Ionicons name="notifications" size={20} color={branding.textSecondary} />
+            <Text style={[styles.settingText, { color: branding.textPrimary }]}>
+              Notifications
+            </Text>
+            <Ionicons name="chevron-forward" size={20} color={branding.textSecondary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.settingCard, { backgroundColor: branding.surfaceColor }]}
+          >
+            <Ionicons name="shield-checkmark" size={20} color={branding.textSecondary} />
+            <Text style={[styles.settingText, { color: branding.textPrimary }]}>
+              Privacy & Security
+            </Text>
+            <Ionicons name="chevron-forward" size={20} color={branding.textSecondary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.settingCard, { backgroundColor: branding.surfaceColor }]}
+          >
+            <Ionicons name="help-circle" size={20} color={branding.textSecondary} />
+            <Text style={[styles.settingText, { color: branding.textPrimary }]}>
+              Help & Support
+            </Text>
+            <Ionicons name="chevron-forward" size={20} color={branding.textSecondary} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Logout */}
+        <View style={styles.section}>
+          <TouchableOpacity
             style={styles.logoutButton}
             onPress={handleLogout}
           >
             <LinearGradient
-              colors={['#FF97EB', '#FFA97C']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
+              colors={['#FF6B6B', '#FF8E53']}
               style={styles.logoutGradient}
             >
-              <Ionicons name="log-out" size={24} color="#060612" />
+              <Ionicons name="log-out" size={20} color="#060612" />
               <Text style={styles.logoutText}>Logout</Text>
             </LinearGradient>
           </TouchableOpacity>
-        </View>
-
-        {/* Footer */}
-        <View style={styles.footer}>
-          <Text style={[styles.version, { color: branding.textSecondary }]}>
-            Cardiyo v1.0.0
-          </Text>
-          <Text style={[styles.tagline, { color: branding.textSecondary }]}>
-            {branding.tagline}
-          </Text>
         </View>
 
         <View style={{ height: 100 }} />
@@ -335,181 +311,30 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  center: { justifyContent: 'center', alignItems: 'center' },
-  loadingText: { color: '#9BFF32', fontSize: 16 },
-  header: {
-    alignItems: 'center',
-    paddingTop: 60,
-    paddingHorizontal: 24,
-    paddingBottom: 32,
-  },
-  avatarContainer: {
-    position: 'relative',
-    marginBottom: 16,
-  },
-  avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 8,
-    shadowColor: '#9BFF32',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-  },
-  avatarText: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#060612',
-  },
-  statusBadge: {
-    position: 'absolute',
-    bottom: 4,
-    right: 4,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#060612',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  statusDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#9BFF32',
-  },
-  name: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  email: {
-    fontSize: 14,
-    marginBottom: 24,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    gap: 16,
-    width: '100%',
-  },
-  statCard: {
-    flex: 1,
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  statGradient: {
-    padding: 20,
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    marginTop: 8,
-  },
-  statLabel: {
-    fontSize: 13,
-    marginTop: 4,
-  },
-  sections: { paddingHorizontal: 24 },
-  section: { marginBottom: 24 },
-  sectionTitle: {
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 1,
-    marginBottom: 12,
-  },
-  menuCard: {
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-  },
-  menuIconContainer: { marginRight: 16 },
-  menuIconGradient: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  menuText: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  divider: {
-    height: 1,
-    marginLeft: 72,
-  },
-  logoutButton: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginTop: 8,
-  },
-  logoutGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 18,
-    gap: 12,
-  },
-  logoutText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#060612',
-  },
-  footer: {
-    alignItems: 'center',
-    paddingTop: 32,
-    paddingBottom: 16,
-  },
-  version: { fontSize: 12, marginBottom: 4 },
-  tagline: { fontSize: 12, fontStyle: 'italic' },
-  guestState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 40,
-  },
-  guestAvatarContainer: { marginBottom: 24 },
-  guestAvatar: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  guestTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  guestSubtitle: {
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 32,
-    lineHeight: 24,
-  },
-  loginButtonContainer: {
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  loginButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 32,
-    paddingVertical: 16,
-    gap: 12,
-  },
-  loginButtonText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#060612',
-  },
+  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#060612' },
+  guestContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
+  guestIcon: { marginBottom: 32 },
+  guestIconGradient: { width: 140, height: 140, borderRadius: 70, justifyContent: 'center', alignItems: 'center' },
+  guestTitle: { fontSize: 28, fontWeight: 'bold', marginBottom: 12 },
+  guestSubtitle: { fontSize: 16, textAlign: 'center', marginBottom: 40, lineHeight: 24 },
+  loginButton: { borderRadius: 16, overflow: 'hidden', width: '100%' },
+  loginButtonGradient: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 20, gap: 12 },
+  loginButtonText: { fontSize: 18, fontWeight: '600', color: '#060612' },
+  header: { alignItems: 'center', paddingTop: 80, paddingBottom: 40, paddingHorizontal: 24 },
+  avatarContainer: { marginBottom: 20 },
+  avatar: { width: 100, height: 100, borderRadius: 50, justifyContent: 'center', alignItems: 'center', elevation: 8, shadowColor: '#9BFF32', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 12 },
+  avatarText: { fontSize: 40, fontWeight: 'bold', color: '#060612' },
+  name: { fontSize: 28, fontWeight: 'bold', marginBottom: 8 },
+  phone: { fontSize: 16 },
+  section: { paddingHorizontal: 24, marginBottom: 32 },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 16 },
+  infoCard: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 12, marginBottom: 12, gap: 16 },
+  infoContent: { flex: 1 },
+  infoLabel: { fontSize: 12, marginBottom: 4 },
+  infoValue: { fontSize: 16, fontWeight: '600' },
+  settingCard: { flexDirection: 'row', alignItems: 'center', padding: 18, borderRadius: 12, marginBottom: 12, gap: 16 },
+  settingText: { flex: 1, fontSize: 16, fontWeight: '500' },
+  logoutButton: { borderRadius: 12, overflow: 'hidden' },
+  logoutGradient: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 18, gap: 12 },
+  logoutText: { fontSize: 16, fontWeight: '600', color: '#060612' },
 });

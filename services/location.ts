@@ -1,12 +1,12 @@
 import * as Location from 'expo-location';
-import { getAreaFromCoordinates, DubaiArea } from './areas';
+import { getAreaFromCoordinates, Area } from './areas';
 
 export interface UserLocation {
   latitude: number;
   longitude: number;
   city: string;
   country: string;
-  area?: DubaiArea;
+  area?: Area;
 }
 
 export async function requestLocationPermission(): Promise<boolean> {
@@ -32,16 +32,11 @@ export async function getUserLocation(): Promise<UserLocation | null> {
 
     const { latitude, longitude } = location.coords;
 
-    // Reverse geocode to get city and country
-    const geocode = await Location.reverseGeocodeAsync({
-      latitude,
-      longitude,
-    });
-
+    const geocode = await Location.reverseGeocodeAsync({ latitude, longitude });
     const place = geocode[0];
     
-    // Get Dubai area if in Dubai
-    const area = getAreaFromCoordinates(latitude, longitude);
+    // Get area from database
+    const area = await getAreaFromCoordinates(latitude, longitude);
 
     return {
       latitude,
