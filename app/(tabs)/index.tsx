@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { auth } from '../../firebaseConfig';
@@ -16,11 +17,18 @@ export default function HomeScreen() {
   const [categories, setCategories] = useState<CategoryBranding[]>([]);
   const [location, setLocation] = useState<UserLocation | null>(null);
   const [greeting, setGreeting] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     loadBranding();
     setGreetingMessage();
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      setGreetingMessage();
+    }, [])
+  );
 
   function setGreetingMessage() {
     const hour = new Date().getHours();
@@ -39,11 +47,33 @@ export default function HomeScreen() {
     setLocation(loc);
   }
 
+  async function handleRefresh() {
+    setRefreshing(true);
+    await loadBranding();
+    setRefreshing(false);
+  }
+
   function handleCategoryPress(categoryId: string) {
     router.push({
       pathname: '/(tabs)/offers',
       params: { category: categoryId }
     });
+  }
+
+  function getFirstName() {
+    if (!auth.currentUser) return 'Guest';
+    
+    const displayName = auth.currentUser.displayName;
+    if (displayName) {
+      return displayName.split(' ')[0];
+    }
+    
+    const email = auth.currentUser.email;
+    if (email) {
+      return email.split('@')[0];
+    }
+    
+    return 'User';
   }
 
   if (!branding) {
@@ -55,17 +85,25 @@ export default function HomeScreen() {
   }
 
   const isGuest = !auth.currentUser;
+  const firstName = getFirstName();
 
   return (
     <View style={[styles.container, { backgroundColor: branding.backgroundColor }]}>
-      {/* Gradient Background */}
       <LinearGradient
         colors={['#060612', '#0a0a1a', '#060612']}
         style={StyleSheet.absoluteFill}
       />
 
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Header */}
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={branding.success}
+          />
+        }
+      >
         <View style={styles.header}>
           <View style={styles.headerTop}>
             <View>
@@ -73,7 +111,7 @@ export default function HomeScreen() {
                 {greeting} 👋
               </Text>
               <Text style={[styles.userName, { color: branding.textPrimary }]}>
-                {isGuest ? 'Guest' : auth.currentUser?.displayName?.split(' ')[0] || 'User'}
+                {firstName}
               </Text>
             </View>
             
@@ -94,7 +132,6 @@ export default function HomeScreen() {
             )}
           </View>
 
-          {/* Guest Banner */}
           {isGuest && (
             <TouchableOpacity
               style={styles.guestBanner}
@@ -124,7 +161,6 @@ export default function HomeScreen() {
           )}
         </View>
 
-        {/* Categories Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: branding.textPrimary }]}>
@@ -162,7 +198,6 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Quick Actions */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: branding.textPrimary }]}>
             Quick Actions
@@ -203,7 +238,6 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Spacer for tab bar */}
         <View style={{ height: 100 }} />
       </ScrollView>
     </View>
@@ -211,165 +245,36 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  loading: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#060612',
-  },
-  header: {
-    paddingTop: 60,
-    paddingHorizontal: 24,
-    marginBottom: 32,
-  },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 20,
-  },
-  greeting: {
-    fontSize: 14,
-    marginBottom: 4,
-  },
-  userName: {
-    fontSize: 28,
-    fontWeight: 'bold',
-  },
-  locationBadge: {
-    borderRadius: 20,
-    overflow: 'hidden',
-  },
-  locationGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    gap: 6,
-  },
-  locationText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  guestBanner: {
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  guestBannerGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-  },
-  guestBannerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  guestIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(6, 6, 18, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  guestText: {
-    flex: 1,
-  },
-  guestTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#060612',
-    marginBottom: 2,
-  },
-  guestSubtitle: {
-    fontSize: 13,
-    color: 'rgba(6, 6, 18, 0.7)',
-  },
-  section: {
-    paddingHorizontal: 24,
-    marginBottom: 32,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-  },
-  sectionCount: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  categoriesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 16,
-  },
-  categoryCard: {
-    borderRadius: 20,
-    overflow: 'hidden',
-  },
-  categoryGradient: {
-    padding: 20,
-    minHeight: 160,
-    justifyContent: 'space-between',
-  },
-  categoryIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(6, 6, 18, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  categoryEmoji: {
-    fontSize: 28,
-  },
-  categoryName: {
-    fontSize: 17,
-    fontWeight: 'bold',
-    color: '#060612',
-    marginBottom: 4,
-  },
-  categoryCount: {
-    fontSize: 13,
-    color: 'rgba(6, 6, 18, 0.7)',
-    fontWeight: '600',
-  },
-  actionsGrid: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  actionCard: {
-    flex: 1,
-    backgroundColor: '#1a1a1a',
-    borderRadius: 16,
-    padding: 20,
-  },
-  actionIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  actionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  actionSubtitle: {
-    fontSize: 13,
-  },
+  container: { flex: 1 },
+  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#060612' },
+  header: { paddingTop: 60, paddingHorizontal: 24, marginBottom: 32 },
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 },
+  greeting: { fontSize: 14, marginBottom: 4 },
+  userName: { fontSize: 28, fontWeight: 'bold' },
+  locationBadge: { borderRadius: 20, overflow: 'hidden' },
+  locationGradient: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, gap: 6 },
+  locationText: { fontSize: 13, fontWeight: '600' },
+  guestBanner: { borderRadius: 16, overflow: 'hidden' },
+  guestBannerGradient: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16 },
+  guestBannerContent: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  guestIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(6, 6, 18, 0.2)', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  guestText: { flex: 1 },
+  guestTitle: { fontSize: 16, fontWeight: 'bold', color: '#060612', marginBottom: 2 },
+  guestSubtitle: { fontSize: 13, color: 'rgba(6, 6, 18, 0.7)' },
+  section: { paddingHorizontal: 24, marginBottom: 32 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  sectionTitle: { fontSize: 22, fontWeight: 'bold' },
+  sectionCount: { fontSize: 14, fontWeight: '600' },
+  categoriesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
+  categoryCard: { borderRadius: 20, overflow: 'hidden' },
+  categoryGradient: { padding: 20, minHeight: 160, justifyContent: 'space-between' },
+  categoryIcon: { width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(6, 6, 18, 0.2)', justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+  categoryEmoji: { fontSize: 28 },
+  categoryName: { fontSize: 17, fontWeight: 'bold', color: '#060612', marginBottom: 4 },
+  categoryCount: { fontSize: 13, color: 'rgba(6, 6, 18, 0.7)', fontWeight: '600' },
+  actionsGrid: { flexDirection: 'row', gap: 16 },
+  actionCard: { flex: 1, backgroundColor: '#1a1a1a', borderRadius: 16, padding: 20 },
+  actionIcon: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+  actionTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
+  actionSubtitle: { fontSize: 13 },
 });

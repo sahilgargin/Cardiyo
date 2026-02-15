@@ -29,7 +29,6 @@ export async function getOffersByLocation(
   try {
     let offersQuery = collection(db, 'offers');
     
-    // Apply category filter if provided
     if (categoryFilter) {
       offersQuery = query(offersQuery, where('category', '==', categoryFilter)) as any;
     }
@@ -40,22 +39,18 @@ export async function getOffersByLocation(
     for (const offerDoc of offersSnapshot.docs) {
       const data = offerDoc.data();
       
-      // Calculate distance if it's a nearby offer
       let distance: number | undefined;
       if (data.type === 'nearby' && data.latitude && data.longitude) {
         distance = calculateDistance(userLat, userLng, data.latitude, data.longitude);
-        
-        // Skip if outside radius
         if (distance > radiusKm) continue;
       }
 
-      // Get category branding
       let categoryData: any = null;
       try {
         const categoryDoc = await getDoc(doc(db, 'branding/categories/items', data.category));
         categoryData = categoryDoc.exists() ? categoryDoc.data() : null;
       } catch (error) {
-        console.log('Category branding not found:', data.category);
+        // Silent fail
       }
 
       offers.push({
@@ -78,7 +73,6 @@ export async function getOffersByLocation(
       });
     }
 
-    // Sort by distance (nearby first)
     return offers.sort((a, b) => {
       if (a.distance && b.distance) return a.distance - b.distance;
       if (a.distance) return -1;
@@ -93,20 +87,17 @@ export async function getOffersByLocation(
 
 export async function getOffersByCard(userId: string): Promise<Offer[]> {
   try {
-    // Get user's cards
     const userCardsSnapshot = await getDocs(collection(db, 'users', userId, 'cards'));
     const userCardIds = userCardsSnapshot.docs.map(doc => doc.data().cardId);
 
     if (userCardIds.length === 0) return [];
 
-    // Get all offers and filter by user's cards
     const offersSnapshot = await getDocs(collection(db, 'offers'));
-    
     const offers: Offer[] = [];
+    
     for (const offerDoc of offersSnapshot.docs) {
       const data = offerDoc.data();
       
-      // Skip if not for user's cards
       if (!userCardIds.includes(data.cardId)) continue;
       
       let categoryData: any = null;
@@ -114,7 +105,7 @@ export async function getOffersByCard(userId: string): Promise<Offer[]> {
         const categoryDoc = await getDoc(doc(db, 'branding/categories/items', data.category));
         categoryData = categoryDoc.exists() ? categoryDoc.data() : null;
       } catch (error) {
-        console.log('Category branding not found:', data.category);
+        // Silent fail
       }
 
       offers.push({
@@ -144,7 +135,7 @@ export async function getOffersByCard(userId: string): Promise<Offer[]> {
 }
 
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371; // Earth's radius in km
+  const R = 6371;
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
   const a =

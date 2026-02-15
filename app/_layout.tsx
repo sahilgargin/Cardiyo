@@ -6,6 +6,7 @@ export default function RootLayout() {
       <Stack.Screen name="index" />
       <Stack.Screen name="auth/welcome" />
       <Stack.Screen name="auth/verify-phone" />
+      <Stack.Screen name="auth/setup-profile" />
       <Stack.Screen name="(tabs)" />
       <Stack.Screen 
         name="add-card/select-bank"

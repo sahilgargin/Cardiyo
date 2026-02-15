@@ -14,165 +14,66 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 async function seedBranding() {
-  console.log('🌱 Starting branding seed...\n');
-
-  // 1. App Branding
-  console.log('📱 Seeding app branding...');
+  console.log('\n🌱 Seeding app branding...');
+  
+  // App branding
   await setDoc(doc(db, 'branding', 'app'), {
-    appName: 'Cardiyo',
-    tagline: 'Smart cards, smarter offers',
+    primaryGradient: {
+      colors: ['#9BFF32', '#3DEEFF'],
+      angle: 135
+    },
+    secondaryGradient: {
+      colors: ['#FF97EB', '#FFA97C'],
+      angle: 135
+    },
     backgroundColor: '#060612',
     surfaceColor: '#1a1a1a',
     textPrimary: '#F9F9F9',
     textSecondary: '#888888',
     success: '#9BFF32',
-    error: '#FF97EB',
-    warning: '#FFEFA0',
-    info: '#3DEEFF',
-    primaryGradient: {
-      colors: ['#9BFF32', '#3DEEFF'],
-      angle: 45
-    },
-    secondaryGradient: {
-      colors: ['#FF97EB', '#FFA97C'],
-      angle: 45
-    }
+    error: '#FF6B6B',
+    warning: '#FFB800',
+    tagline: 'Smart cards, smarter offers'
   });
   console.log('  ✓ App branding');
 
-  // 2. Categories
-  console.log('\n🏷️  Seeding categories...');
+  // Categories
   const categories = [
-    {
-      id: 'dining',
-      name: 'Dining',
-      icon: 'restaurant',
-      emoji: '🍽️',
-      gradient: { colors: ['#FF97EB', '#FFEFA0'], angle: 135 },
-      description: 'Restaurants, cafes, and food delivery'
-    },
-    {
-      id: 'shopping',
-      name: 'Shopping',
-      icon: 'cart',
-      emoji: '🛍️',
-      gradient: { colors: ['#9BFF32', '#3DEEFF'], angle: 135 },
-      description: 'Retail stores and online shopping'
-    },
-    {
-      id: 'entertainment',
-      name: 'Entertainment',
-      icon: 'film',
-      emoji: '🎬',
-      gradient: { colors: ['#D994FF', '#FFA97C'], angle: 135 },
-      description: 'Movies, concerts, and events'
-    },
-    {
-      id: 'travel',
-      name: 'Travel',
-      icon: 'airplane',
-      emoji: '✈️',
-      gradient: { colors: ['#3DEEFF', '#9BFF32'], angle: 135 },
-      description: 'Flights, hotels, and bookings'
-    },
-    {
-      id: 'wellness',
-      name: 'Wellness',
-      icon: 'fitness',
-      emoji: '💪',
-      gradient: { colors: ['#FFA97C', '#FF97EB'], angle: 135 },
-      description: 'Gym, spa, and health'
-    },
-    {
-      id: 'fuel',
-      name: 'Fuel',
-      icon: 'car',
-      emoji: '⛽',
-      gradient: { colors: ['#FFEFA0', '#D994FF'], angle: 135 },
-      description: 'Petrol stations and charging'
-    }
+    { id: 'dining', name: 'Dining', emoji: '🍽️', gradient: { colors: ['#FF6B6B', '#FF8E53'], angle: 135 } },
+    { id: 'shopping', name: 'Shopping', emoji: '🛍️', gradient: { colors: ['#9BFF32', '#3DEEFF'], angle: 135 } },
+    { id: 'entertainment', name: 'Entertainment', emoji: '🎬', gradient: { colors: ['#FF97EB', '#D994FF'], angle: 135 } },
+    { id: 'travel', name: 'Travel', emoji: '✈️', gradient: { colors: ['#3DEEFF', '#4A9FFF'], angle: 135 } },
+    { id: 'wellness', name: 'Wellness', emoji: '💪', gradient: { colors: ['#FFEFA0', '#FFA97C'], angle: 135 } },
+    { id: 'fuel', name: 'Fuel', emoji: '⛽', gradient: { colors: ['#FFB800', '#FF8E53'], angle: 135 } },
   ];
 
   for (const category of categories) {
     await setDoc(doc(db, 'branding/categories/items', category.id), category);
-    console.log(`  ✓ ${category.name}`);
+    console.log(`  ✓ Category: ${category.name}`);
   }
 
-  // 3. Banks
-  console.log('\n🏦 Seeding banks...');
+  // Banks with country data
   const banks = [
-    {
-      id: 'emirates-nbd',
-      name: 'Emirates NBD',
-      logo: 'https://example.com/enbd-logo.png',
-      gradient: { colors: ['#C41E3A', '#8B1428'], angle: 135 },
-      accentColor: '#FFD700'
-    },
-    {
-      id: 'adcb',
-      name: 'ADCB',
-      logo: 'https://example.com/adcb-logo.png',
-      gradient: { colors: ['#005EB8', '#003D82'], angle: 135 },
-      accentColor: '#87CEEB'
-    },
-    {
-      id: 'mashreq',
-      name: 'Mashreq',
-      logo: 'https://example.com/mashreq-logo.png',
-      gradient: { colors: ['#E31E24', '#B71C1C'], angle: 135 },
-      accentColor: '#FFD700'
-    }
+    // UAE Banks
+    { id: 'emirates-nbd', name: 'Emirates NBD', logo: '', country: 'AE' },
+    { id: 'adcb', name: 'ADCB', logo: '', country: 'AE' },
+    { id: 'mashreq', name: 'Mashreq Bank', logo: '', country: 'AE' },
+    { id: 'fab', name: 'First Abu Dhabi Bank', logo: '', country: 'AE' },
+    { id: 'rakbank', name: 'RAKBANK', logo: '', country: 'AE' },
+    
+    // Saudi Banks
+    { id: 'alrajhi', name: 'Al Rajhi Bank', logo: '', country: 'SA' },
+    { id: 'sab', name: 'Saudi Awwal Bank', logo: '', country: 'SA' },
+    { id: 'alinma', name: 'Alinma Bank', logo: '', country: 'SA' },
+    { id: 'riyad', name: 'Riyad Bank', logo: '', country: 'SA' },
   ];
 
   for (const bank of banks) {
     await setDoc(doc(db, 'banks', bank.id), bank);
-    console.log(`  ✓ ${bank.name}`);
+    console.log(`  ✓ Bank: ${bank.name} (${bank.country})`);
   }
 
-  // 4. Cards
-  console.log('\n💳 Seeding cards...');
-  const cards = [
-    {
-      id: 'emirates-nbd-platinum',
-      bankId: 'emirates-nbd',
-      name: 'Emirates NBD Platinum',
-      type: 'Platinum',
-      benefits: ['Lounge Access', 'Travel Insurance', '2X Points'],
-      gradient: { colors: ['#2C3E50', '#1A252F'], angle: 135 },
-      textColor: '#E8E8E8',
-      chipColor: '#D4AF37',
-      networkLogo: 'mastercard'
-    },
-    {
-      id: 'adcb-traveller',
-      bankId: 'adcb',
-      name: 'ADCB Traveller',
-      type: 'Gold',
-      benefits: ['Travel Rewards', 'No Foreign Fees', 'Airport Transfers'],
-      gradient: { colors: ['#1E3A8A', '#1E40AF'], angle: 135 },
-      textColor: '#FFFFFF',
-      chipColor: '#FFD700',
-      networkLogo: 'visa'
-    },
-    {
-      id: 'mashreq-cashback',
-      bankId: 'mashreq',
-      name: 'Mashreq Cashback',
-      type: 'Signature',
-      benefits: ['5% Cashback', 'Fuel Rewards', 'Dining Offers'],
-      gradient: { colors: ['#7C2D12', '#991B1B'], angle: 135 },
-      textColor: '#F5F5F5',
-      chipColor: '#C0C0C0',
-      networkLogo: 'mastercard'
-    }
-  ];
-
-  for (const card of cards) {
-    await setDoc(doc(db, 'cards', card.id), card);
-    console.log(`  ✓ ${card.name}`);
-  }
-
-  console.log('\n✅ Branding seed complete!');
+  console.log('✅ App branding seeded!');
 }
 
 module.exports = { seedBranding };
