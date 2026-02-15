@@ -39,6 +39,13 @@ export default function HomeScreen() {
     setLocation(loc);
   }
 
+  function handleCategoryPress(categoryId: string) {
+    router.push({
+      pathname: '/(tabs)/offers',
+      params: { category: categoryId }
+    });
+  }
+
   if (!branding) {
     return (
       <View style={styles.loading}>
@@ -134,7 +141,7 @@ export default function HomeScreen() {
                 key={category.id}
                 style={[styles.categoryCard, { width: CARD_WIDTH }]}
                 activeOpacity={0.8}
-                onPress={() => router.push('/(tabs)/offers')}
+                onPress={() => handleCategoryPress(category.id)}
               >
                 <LinearGradient
                   colors={category.gradient.colors as [string, string]}
@@ -147,7 +154,7 @@ export default function HomeScreen() {
                   </View>
                   <Text style={styles.categoryName}>{category.name}</Text>
                   <Text style={styles.categoryCount}>
-                    {Math.floor(Math.random() * 15 + 5)}+ offers
+                    Tap to explore
                   </Text>
                 </LinearGradient>
               </TouchableOpacity>

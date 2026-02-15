@@ -1,56 +1,90 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, Dimensions } from 'react-native';
-import { useRouter } from 'expo-router';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, Alert } from 'react-native';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { auth } from '../../firebaseConfig';
 import { getUserLocation, UserLocation } from '../../services/location';
-import { getOffersByLocation, getOffersByCard, Offer } from '../../services/offers';
-import { getAppBranding, AppBranding } from '../../services/branding';
-
-const { width } = Dimensions.get('window');
+import { getOffersByLocation, Offer } from '../../services/offers';
+import { getAppBranding, AppBranding, getAllCategories, CategoryBranding } from '../../services/branding';
 
 export default function OffersScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
+  const categoryParam = params.category as string | undefined;
+
   const [branding, setBranding] = useState<AppBranding | null>(null);
+  const [categories, setCategories] = useState<CategoryBranding[]>([]);
   const [offers, setOffers] = useState<Offer[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [location, setLocation] = useState<UserLocation | null>(null);
   const [filter, setFilter] = useState<'all' | 'online'>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(categoryParam || null);
 
   const isGuest = !auth.currentUser;
 
   useEffect(() => {
+    console.log('=== OFFERS SCREEN: Initial Load ===');
     loadData();
   }, []);
 
+  useEffect(() => {
+    if (categoryParam) {
+      console.log('Category param changed:', categoryParam);
+      setSelectedCategory(categoryParam);
+    }
+  }, [categoryParam]);
+
+  useEffect(() => {
+    console.log('Selected category changed:', selectedCategory);
+    if (branding) {
+      loadOffers();
+    }
+  }, [selectedCategory]);
+
   async function loadData() {
-    const app = await getAppBranding();
-    setBranding(app);
+    try {
+      console.log('Loading branding...');
+      const app = await getAppBranding();
+      setBranding(app);
+      console.log('Branding loaded:', app ? 'Success' : 'Failed');
 
-    const loc = await getUserLocation();
-    setLocation(loc);
+      console.log('Loading categories...');
+      const cats = await getAllCategories();
+      setCategories(cats);
+      console.log('Categories loaded:', cats.length);
 
-    await loadOffers(loc);
+      console.log('Getting user location...');
+      const loc = await getUserLocation();
+      console.log('Location:', loc);
+      setLocation(loc);
+
+      await loadOffers(loc);
+    } catch (error) {
+      console.error('Error in loadData:', error);
+      setLoading(false);
+    }
   }
 
-  async function loadOffers(userLocation: UserLocation | null) {
+  async function loadOffers(userLocation?: UserLocation | null) {
+    console.log('=== Loading Offers ===');
+    const loc = userLocation !== undefined ? userLocation : location;
+    console.log('Location to use:', loc);
+    console.log('Selected category:', selectedCategory);
+    
     setLoading(true);
     try {
-      const user = auth.currentUser;
+      // For now, just load all location-based offers with large radius
+      const allOffers = await getOffersByLocation(
+        loc?.latitude || 25.2048, // Default to Dubai
+        loc?.longitude || 55.2708,
+        500, // 500km radius
+        selectedCategory || undefined
+      );
       
-      if (user) {
-        const cardOffers = await getOffersByCard(user.uid);
-        setOffers(cardOffers);
-      } else if (userLocation) {
-        const locationOffers = await getOffersByLocation(
-          userLocation.latitude,
-          userLocation.longitude,
-          20
-        );
-        setOffers(locationOffers);
-      }
+      console.log('Offers loaded:', allOffers.length);
+      setOffers(allOffers);
     } catch (error) {
       console.error('Error loading offers:', error);
     } finally {
@@ -60,10 +94,13 @@ export default function OffersScreen() {
 
   async function handleRefresh() {
     setRefreshing(true);
-    const loc = await getUserLocation();
-    setLocation(loc);
-    await loadOffers(loc);
+    await loadOffers();
     setRefreshing(false);
+  }
+
+  function handleCategorySelect(categoryId: string | null) {
+    console.log('Category selected:', categoryId);
+    setSelectedCategory(categoryId);
   }
 
   function renderOffer(offer: Offer) {
@@ -82,7 +119,6 @@ export default function OffersScreen() {
           end={{ x: 1, y: 1 }}
           style={styles.offerGradient}
         >
-          {/* Header */}
           <View style={styles.offerHeader}>
             <View style={styles.categoryBadge}>
               <Text style={styles.categoryEmoji}>{offer.categoryEmoji}</Text>
@@ -93,7 +129,6 @@ export default function OffersScreen() {
             </View>
           </View>
 
-          {/* Content */}
           <View style={styles.offerContent}>
             <Text style={styles.offerTitle} numberOfLines={2}>
               {offer.title}
@@ -103,7 +138,6 @@ export default function OffersScreen() {
             </Text>
           </View>
 
-          {/* Footer */}
           <View style={styles.offerFooter}>
             <View style={styles.merchantInfo}>
               <View style={styles.merchantIcon}>
@@ -130,14 +164,6 @@ export default function OffersScreen() {
               </View>
             )}
           </View>
-
-          {/* Card Info */}
-          {offer.cardName && (
-            <View style={styles.cardInfo}>
-              <Ionicons name="card" size={12} color="rgba(6,6,18,0.5)" />
-              <Text style={styles.cardText}>{offer.cardName}</Text>
-            </View>
-          )}
         </LinearGradient>
       </TouchableOpacity>
     );
@@ -153,13 +179,11 @@ export default function OffersScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: branding.backgroundColor }]}>
-      {/* Gradient Background */}
       <LinearGradient
         colors={['#060612', '#0a0a1a', '#060612']}
         style={StyleSheet.absoluteFill}
       />
 
-      {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <View>
@@ -185,7 +209,6 @@ export default function OffersScreen() {
           )}
         </View>
 
-        {/* Guest Login Banner */}
         {isGuest && (
           <TouchableOpacity
             style={styles.loginBanner}
@@ -212,7 +235,60 @@ export default function OffersScreen() {
           </TouchableOpacity>
         )}
 
-        {/* Filter Chips */}
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          style={styles.categoryFilterContainer}
+        >
+          <TouchableOpacity
+            style={[
+              styles.categoryFilterChip,
+              { backgroundColor: branding.surfaceColor },
+              selectedCategory === null && styles.categoryFilterChipActive,
+            ]}
+            onPress={() => handleCategorySelect(null)}
+          >
+            {selectedCategory === null && (
+              <LinearGradient
+                colors={branding.primaryGradient.colors as [string, string]}
+                style={StyleSheet.absoluteFill}
+              />
+            )}
+            <Text style={[
+              styles.categoryFilterText,
+              { color: selectedCategory === null ? '#060612' : branding.textSecondary }
+            ]}>
+              All
+            </Text>
+          </TouchableOpacity>
+
+          {categories.map((category) => (
+            <TouchableOpacity
+              key={category.id}
+              style={[
+                styles.categoryFilterChip,
+                { backgroundColor: branding.surfaceColor },
+                selectedCategory === category.id && styles.categoryFilterChipActive,
+              ]}
+              onPress={() => handleCategorySelect(category.id)}
+            >
+              {selectedCategory === category.id && (
+                <LinearGradient
+                  colors={branding.primaryGradient.colors as [string, string]}
+                  style={StyleSheet.absoluteFill}
+                />
+              )}
+              <Text style={styles.categoryFilterEmoji}>{category.emoji}</Text>
+              <Text style={[
+                styles.categoryFilterText,
+                { color: selectedCategory === category.id ? '#060612' : branding.textSecondary }
+              ]}>
+                {category.name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
         <View style={styles.filterContainer}>
           <TouchableOpacity
             style={[
@@ -266,7 +342,6 @@ export default function OffersScreen() {
         </View>
       </View>
 
-      {/* Content */}
       <ScrollView
         refreshControl={
           <RefreshControl
@@ -299,9 +374,7 @@ export default function OffersScreen() {
               No Offers Available
             </Text>
             <Text style={[styles.emptySubtitle, { color: branding.textSecondary }]}>
-              {isGuest
-                ? 'Login to see personalized offers'
-                : 'Add cards to see personalized offers'}
+              Check your terminal for debug logs
             </Text>
           </View>
         ) : (
@@ -317,268 +390,56 @@ export default function OffersScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingTop: 60,
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-  },
-  header: {
-    paddingTop: 60,
-    paddingHorizontal: 24,
-    paddingBottom: 20,
-  },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 16,
-  },
-  headerTitle: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  locationInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  locationText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  offerCount: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#1a1a1a',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  offerCountText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  loginBanner: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginBottom: 16,
-  },
-  loginBannerGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-  },
-  loginBannerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  loginIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(6, 6, 18, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  loginText: {
-    flex: 1,
-  },
-  loginTitle: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: '#060612',
-    marginBottom: 2,
-  },
-  loginSubtitle: {
-    fontSize: 12,
-    color: 'rgba(6, 6, 18, 0.7)',
-  },
-  filterContainer: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  filterChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    overflow: 'hidden',
-  },
-  filterChipActive: {
-    borderWidth: 0,
-  },
-  filterText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  content: {
-    paddingHorizontal: 24,
-  },
-  offersGrid: {
-    gap: 16,
-  },
-  offerCard: {
-    borderRadius: 20,
-    overflow: 'hidden',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-  },
-  offerGradient: {
-    padding: 20,
-  },
-  offerHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  categoryBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(6, 6, 18, 0.15)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    gap: 6,
-  },
-  categoryEmoji: {
-    fontSize: 16,
-  },
-  categoryName: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#060612',
-    textTransform: 'capitalize',
-  },
-  discountBadge: {
-    backgroundColor: 'rgba(6, 6, 18, 0.2)',
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  discountText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#060612',
-  },
-  offerContent: {
-    marginBottom: 16,
-  },
-  offerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#060612',
-    marginBottom: 8,
-  },
-  offerDescription: {
-    fontSize: 14,
-    color: 'rgba(6, 6, 18, 0.7)',
-    lineHeight: 20,
-  },
-  offerFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(6, 6, 18, 0.1)',
-  },
-  merchantInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    gap: 8,
-  },
-  merchantIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(6, 6, 18, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  merchantName: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: 'rgba(6, 6, 18, 0.8)',
-    flex: 1,
-  },
-  distanceBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(6, 6, 18, 0.1)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  distanceText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#060612',
-  },
-  onlineBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(6, 6, 18, 0.1)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  onlineText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#060612',
-  },
-  cardInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 12,
-  },
-  cardText: {
-    fontSize: 11,
-    color: 'rgba(6, 6, 18, 0.5)',
-    fontWeight: '600',
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 80,
-  },
-  emptyIcon: {
-    marginBottom: 24,
-  },
-  emptyIconGradient: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  emptySubtitle: {
-    fontSize: 16,
-    textAlign: 'center',
-  },
+  container: { flex: 1 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 60 },
+  loadingText: { marginTop: 12, fontSize: 14 },
+  header: { paddingTop: 60, paddingHorizontal: 24, paddingBottom: 20 },
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
+  headerTitle: { fontSize: 32, fontWeight: 'bold', marginBottom: 8 },
+  locationInfo: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  locationText: { fontSize: 14, fontWeight: '600' },
+  offerCount: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#1a1a1a', justifyContent: 'center', alignItems: 'center' },
+  offerCountText: { fontSize: 18, fontWeight: 'bold' },
+  loginBanner: { borderRadius: 16, overflow: 'hidden', marginBottom: 16 },
+  loginBannerGradient: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16 },
+  loginBannerContent: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  loginIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(6, 6, 18, 0.15)', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  loginText: { flex: 1 },
+  loginTitle: { fontSize: 15, fontWeight: 'bold', color: '#060612', marginBottom: 2 },
+  loginSubtitle: { fontSize: 12, color: 'rgba(6, 6, 18, 0.7)' },
+  categoryFilterContainer: { marginBottom: 16, marginHorizontal: -24, paddingHorizontal: 24 },
+  categoryFilterChip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, marginRight: 12, overflow: 'hidden' },
+  categoryFilterChipActive: { borderWidth: 0 },
+  categoryFilterEmoji: { fontSize: 16, marginRight: 6 },
+  categoryFilterText: { fontSize: 14, fontWeight: '600' },
+  filterContainer: { flexDirection: 'row', gap: 12 },
+  filterChip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, overflow: 'hidden' },
+  filterChipActive: { borderWidth: 0 },
+  filterText: { fontSize: 14, fontWeight: '600' },
+  content: { paddingHorizontal: 24 },
+  offersGrid: { gap: 16 },
+  offerCard: { borderRadius: 20, overflow: 'hidden', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8 },
+  offerGradient: { padding: 20 },
+  offerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  categoryBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(6, 6, 18, 0.15)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, gap: 6 },
+  categoryEmoji: { fontSize: 16 },
+  categoryName: { fontSize: 12, fontWeight: '600', color: '#060612', textTransform: 'capitalize' },
+  discountBadge: { backgroundColor: 'rgba(6, 6, 18, 0.2)', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 16 },
+  discountText: { fontSize: 14, fontWeight: 'bold', color: '#060612' },
+  offerContent: { marginBottom: 16 },
+  offerTitle: { fontSize: 20, fontWeight: 'bold', color: '#060612', marginBottom: 8 },
+  offerDescription: { fontSize: 14, color: 'rgba(6, 6, 18, 0.7)', lineHeight: 20 },
+  offerFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 16, borderTopWidth: 1, borderTopColor: 'rgba(6, 6, 18, 0.1)' },
+  merchantInfo: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 },
+  merchantIcon: { width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(6, 6, 18, 0.1)', justifyContent: 'center', alignItems: 'center' },
+  merchantName: { fontSize: 13, fontWeight: '600', color: 'rgba(6, 6, 18, 0.8)', flex: 1 },
+  distanceBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(6, 6, 18, 0.1)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  distanceText: { fontSize: 12, fontWeight: '600', color: '#060612' },
+  onlineBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(6, 6, 18, 0.1)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  onlineText: { fontSize: 12, fontWeight: '600', color: '#060612' },
+  emptyState: { alignItems: 'center', paddingVertical: 80 },
+  emptyIcon: { marginBottom: 24 },
+  emptyIconGradient: { width: 100, height: 100, borderRadius: 50, justifyContent: 'center', alignItems: 'center' },
+  emptyTitle: { fontSize: 24, fontWeight: 'bold', marginBottom: 8 },
+  emptySubtitle: { fontSize: 16, textAlign: 'center', paddingHorizontal: 40 },
 });

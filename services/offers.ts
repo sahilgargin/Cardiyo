@@ -1,5 +1,5 @@
 import { db } from '../firebaseConfig';
-import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, query, where } from 'firebase/firestore';
 
 export interface Offer {
   id: string;
@@ -20,9 +20,21 @@ export interface Offer {
   gradient: [string, string];
 }
 
-export async function getOffersByLocation(userLat: number, userLng: number, radiusKm: number = 10): Promise<Offer[]> {
+export async function getOffersByLocation(
+  userLat: number, 
+  userLng: number, 
+  radiusKm: number = 10,
+  categoryFilter?: string
+): Promise<Offer[]> {
   try {
-    const offersSnapshot = await getDocs(collection(db, 'offers'));
+    let offersQuery = collection(db, 'offers');
+    
+    // Apply category filter if provided
+    if (categoryFilter) {
+      offersQuery = query(offersQuery, where('category', '==', categoryFilter)) as any;
+    }
+
+    const offersSnapshot = await getDocs(offersQuery);
     const offers: Offer[] = [];
 
     for (const offerDoc of offersSnapshot.docs) {
@@ -37,7 +49,7 @@ export async function getOffersByLocation(userLat: number, userLng: number, radi
         if (distance > radiusKm) continue;
       }
 
-      // Get category branding - FIXED PATH
+      // Get category branding
       let categoryData: any = null;
       try {
         const categoryDoc = await getDoc(doc(db, 'branding/categories/items', data.category));
