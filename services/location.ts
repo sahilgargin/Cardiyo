@@ -1,10 +1,12 @@
 import * as Location from 'expo-location';
+import { getAreaFromCoordinates, DubaiArea } from './areas';
 
 export interface UserLocation {
   latitude: number;
   longitude: number;
-  city?: string;
-  country?: string;
+  city: string;
+  country: string;
+  area?: DubaiArea;
 }
 
 export async function requestLocationPermission(): Promise<boolean> {
@@ -20,7 +22,6 @@ export async function requestLocationPermission(): Promise<boolean> {
 export async function getUserLocation(): Promise<UserLocation | null> {
   try {
     const hasPermission = await requestLocationPermission();
-    
     if (!hasPermission) {
       return null;
     }
@@ -29,19 +30,28 @@ export async function getUserLocation(): Promise<UserLocation | null> {
       accuracy: Location.Accuracy.Balanced,
     });
 
+    const { latitude, longitude } = location.coords;
+
+    // Reverse geocode to get city and country
     const geocode = await Location.reverseGeocodeAsync({
-      latitude: location.coords.latitude,
-      longitude: location.coords.longitude,
+      latitude,
+      longitude,
     });
 
+    const place = geocode[0];
+    
+    // Get Dubai area if in Dubai
+    const area = getAreaFromCoordinates(latitude, longitude);
+
     return {
-      latitude: location.coords.latitude,
-      longitude: location.coords.longitude,
-      city: geocode[0]?.city || 'Unknown',
-      country: geocode[0]?.country || 'Unknown',
+      latitude,
+      longitude,
+      city: place?.city || place?.subregion || 'Dubai',
+      country: place?.country || 'UAE',
+      area,
     };
   } catch (error) {
-    console.error('Error getting user location:', error);
+    console.error('Error getting location:', error);
     return null;
   }
 }

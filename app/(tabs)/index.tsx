@@ -123,10 +123,19 @@ export default function HomeScreen() {
                   end={{ x: 1, y: 1 }}
                   style={styles.locationGradient}
                 >
-                  <Ionicons name="location" size={16} color={branding.success} />
-                  <Text style={[styles.locationText, { color: branding.success }]}>
-                    {location.city}
+                  <Text style={styles.locationEmoji}>
+                    {location.area?.emoji || '📍'}
                   </Text>
+                  <View>
+                    <Text style={[styles.locationText, { color: branding.success }]}>
+                      {location.area?.name || location.city}
+                    </Text>
+                    {location.area && (
+                      <Text style={[styles.locationSubtext, { color: branding.textSecondary }]}>
+                        {location.area.nameAr}
+                      </Text>
+                    )}
+                  </View>
                 </LinearGradient>
               </TouchableOpacity>
             )}
@@ -251,9 +260,11 @@ const styles = StyleSheet.create({
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 },
   greeting: { fontSize: 14, marginBottom: 4 },
   userName: { fontSize: 28, fontWeight: 'bold' },
-  locationBadge: { borderRadius: 20, overflow: 'hidden' },
-  locationGradient: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, gap: 6 },
+  locationBadge: { borderRadius: 16, overflow: 'hidden', maxWidth: 180 },
+  locationGradient: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, gap: 8 },
+  locationEmoji: { fontSize: 20 },
   locationText: { fontSize: 13, fontWeight: '600' },
+  locationSubtext: { fontSize: 10, marginTop: 2 },
   guestBanner: { borderRadius: 16, overflow: 'hidden' },
   guestBannerGradient: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16 },
   guestBannerContent: { flexDirection: 'row', alignItems: 'center', flex: 1 },
