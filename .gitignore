@@ -110,3 +110,6 @@ firestore-debug.log
 expo-env.d.ts
 # @end expo-cli
 .env
+serviceAccountKey.json
+serviceAccountKey.json
+serviceAccountKey.json

@@ -1,5 +1,5 @@
 import { db } from '../firebaseConfig';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs } from 'firebase/firestore';
 
 export interface Area {
   id: string;
@@ -25,7 +25,31 @@ export async function getAllAreas(): Promise<Area[]> {
   
   try {
     const areasSnapshot = await getDocs(collection(db, 'areas'));
-    cachedAreas = areasSnapshot.docs.map(doc => doc.data() as Area);
+    cachedAreas = areasSnapshot.docs
+      .filter(doc => {
+        const data = doc.data();
+        // Skip placeholder documents
+        return !data._placeholder && data.bounds && data.name;
+      })
+      .map(doc => {
+        const data = doc.data();
+        return {
+          id: data.id || doc.id,
+          name: data.name,
+          nameAr: data.nameAr,
+          emoji: data.emoji,
+          city: data.city,
+          country: data.country,
+          bounds: {
+            north: data.bounds.north,
+            south: data.bounds.south,
+            east: data.bounds.east,
+            west: data.bounds.west,
+          }
+        } as Area;
+      });
+    
+    console.log(`✅ Loaded ${cachedAreas.length} areas from database`);
     return cachedAreas;
   } catch (error) {
     console.error('Error fetching areas:', error);
@@ -34,20 +58,30 @@ export async function getAllAreas(): Promise<Area[]> {
 }
 
 export async function getAreaFromCoordinates(latitude: number, longitude: number): Promise<Area | null> {
-  const areas = await getAllAreas();
-  
-  for (const area of areas) {
-    if (
-      latitude <= area.bounds.north &&
-      latitude >= area.bounds.south &&
-      longitude <= area.bounds.east &&
-      longitude >= area.bounds.west
-    ) {
-      return area;
+  try {
+    const areas = await getAllAreas();
+    
+    if (areas.length === 0) {
+      console.log('No areas loaded from database');
+      return null;
     }
+    
+    for (const area of areas) {
+      if (
+        latitude <= area.bounds.north &&
+        latitude >= area.bounds.south &&
+        longitude <= area.bounds.east &&
+        longitude >= area.bounds.west
+      ) {
+        return area;
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error in getAreaFromCoordinates:', error);
+    return null;
   }
-  
-  return null;
 }
 
 export async function getNearbyAreas(latitude: number, longitude: number, radiusKm: number = 5): Promise<Area[]> {

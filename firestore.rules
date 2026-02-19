@@ -1,0 +1,56 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Config collection (branding, settings) - Public read
+    match /config/{document=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+    
+    // Cards collection - Public read
+    match /cards/{cardId} {
+      allow read: if true;
+      allow write: if false;
+    }
+    
+    // Areas collection - Public read
+    match /areas/{areaId} {
+      allow read: if true;
+      allow write: if false;
+    }
+    
+    // Banks, Offers - Public read
+    match /banks/{document=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+    
+    match /offers/{document=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+    
+    // Users - Private but allow phone number queries for login
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null;
+      
+      // Allow querying by phone number for authentication
+      allow list: if request.auth != null && 
+                     request.query.limit <= 1;
+      
+      match /{document=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+    
+    // Transactions - Private
+    match /transactions/{transactionId} {
+      allow read, write: if request.auth != null && 
+                           resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null;
+    }
+  }
+}

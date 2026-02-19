@@ -1,152 +1,48 @@
-import { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, RefreshControl } from 'react-native';
+import { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { auth, db } from '../../firebaseConfig';
-import { signOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
 import { getAppBranding, AppBranding } from '../../services/branding';
-
-interface UserProfile {
-  firstName: string;
-  lastName: string;
-  email?: string;
-  phoneNumber?: string;
-  country?: string;
-}
+import { getUserProfile, logout } from '../../services/auth';
 
 export default function ProfileScreen() {
   const router = useRouter();
   const [branding, setBranding] = useState<AppBranding | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
+  const [profile, setProfile] = useState<any>(null);
 
   useEffect(() => {
     loadData();
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadProfile();
-    }, [])
-  );
-
   async function loadData() {
     const app = await getAppBranding();
     setBranding(app);
-    await loadProfile();
-  }
 
-  async function loadProfile() {
-    const user = auth.currentUser;
-    if (!user) {
-      setProfile(null);
-      return;
-    }
-
-    try {
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      if (userDoc.exists()) {
-        const data = userDoc.data();
-        setProfile({
-          firstName: data.firstName || '',
-          lastName: data.lastName || '',
-          email: data.email || user.email || '',
-          phoneNumber: data.phoneNumber || user.phoneNumber || '',
-          country: data.country || 'AE',
-        });
-      } else {
-        // Fallback to auth data
-        const displayName = user.displayName || '';
-        const nameParts = displayName.split(' ');
-        setProfile({
-          firstName: nameParts[0] || 'User',
-          lastName: nameParts.slice(1).join(' ') || '',
-          email: user.email || '',
-          phoneNumber: user.phoneNumber || '',
-        });
-      }
-    } catch (error) {
-      console.error('Error loading profile:', error);
-    }
-  }
-
-  async function handleRefresh() {
-    setRefreshing(true);
-    await loadProfile();
-    setRefreshing(false);
+    const userProfile = await getUserProfile();
+    setProfile(userProfile);
   }
 
   async function handleLogout() {
     Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
+      'Sign Out',
+      'Are you sure you want to sign out?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Logout',
+          text: 'Sign Out',
           style: 'destructive',
           onPress: async () => {
-            await signOut(auth);
+            await logout();
             router.replace('/auth/welcome');
-          },
-        },
+          }
+        }
       ]
     );
   }
 
   if (!branding) {
-    return (
-      <View style={styles.loading}>
-        <Text style={{ color: '#9BFF32' }}>Loading...</Text>
-      </View>
-    );
-  }
-
-  const isGuest = !auth.currentUser;
-
-  if (isGuest) {
-    return (
-      <View style={[styles.container, { backgroundColor: branding.backgroundColor }]}>
-        <LinearGradient
-          colors={['#060612', '#0a0a1a', '#060612']}
-          style={StyleSheet.absoluteFill}
-        />
-
-        <View style={styles.guestContainer}>
-          <View style={styles.guestIcon}>
-            <LinearGradient
-              colors={['rgba(155, 255, 50, 0.1)', 'rgba(61, 238, 255, 0.1)']}
-              style={styles.guestIconGradient}
-            >
-              <Ionicons name="person-outline" size={64} color={branding.success} />
-            </LinearGradient>
-          </View>
-
-          <Text style={[styles.guestTitle, { color: branding.textPrimary }]}>
-            Login to Continue
-          </Text>
-          <Text style={[styles.guestSubtitle, { color: branding.textSecondary }]}>
-            Access your cards, rewards, and personalized offers
-          </Text>
-
-          <TouchableOpacity
-            style={styles.loginButton}
-            onPress={() => router.push('/auth/welcome')}
-          >
-            <LinearGradient
-              colors={branding.primaryGradient.colors as [string, string]}
-              style={styles.loginButtonGradient}
-            >
-              <Ionicons name="log-in" size={24} color="#060612" />
-              <Text style={styles.loginButtonText}>Login with Phone</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
+    return <View style={styles.loading} />;
   }
 
   return (
@@ -156,152 +52,150 @@ export default function ProfileScreen() {
         style={StyleSheet.absoluteFill}
       />
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            tintColor={branding.success}
-          />
-        }
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.avatarContainer}>
-            <LinearGradient
-              colors={branding.primaryGradient.colors as [string, string]}
-              style={styles.avatar}
-            >
-              <Text style={styles.avatarText}>
-                {profile?.firstName?.charAt(0).toUpperCase() || 'U'}
-              </Text>
-            </LinearGradient>
-          </View>
+      <View style={styles.header}>
+        <Text style={[styles.headerTitle, { color: branding.textPrimary }]}>
+          Profile
+        </Text>
+      </View>
 
+      <ScrollView contentContainerStyle={styles.content}>
+        {/* Profile Card */}
+        <View style={[styles.profileCard, { backgroundColor: branding.surfaceColor }]}>
+          <View style={[styles.avatar, { backgroundColor: branding.primaryColor + '20' }]}>
+            <Text style={[styles.avatarText, { color: branding.primaryColor }]}>
+              {profile?.firstName?.[0]}{profile?.lastName?.[0]}
+            </Text>
+          </View>
+          
           <Text style={[styles.name, { color: branding.textPrimary }]}>
             {profile?.firstName} {profile?.lastName}
           </Text>
           
-          {profile?.phoneNumber && (
-            <Text style={[styles.phone, { color: branding.textSecondary }]}>
-              {profile.phoneNumber}
-            </Text>
-          )}
-        </View>
-
-        {/* Profile Info */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: branding.textPrimary }]}>
-            Account Information
+          <Text style={[styles.email, { color: branding.textSecondary }]}>
+            {profile?.email}
           </Text>
 
-          {profile?.email && (
-            <View style={[styles.infoCard, { backgroundColor: branding.surfaceColor }]}>
-              <Ionicons name="mail" size={20} color={branding.textSecondary} />
-              <View style={styles.infoContent}>
-                <Text style={[styles.infoLabel, { color: branding.textSecondary }]}>
-                  Email
-                </Text>
-                <Text style={[styles.infoValue, { color: branding.textPrimary }]}>
-                  {profile.email}
-                </Text>
-              </View>
-            </View>
-          )}
-
           {profile?.phoneNumber && (
-            <View style={[styles.infoCard, { backgroundColor: branding.surfaceColor }]}>
-              <Ionicons name="call" size={20} color={branding.textSecondary} />
-              <View style={styles.infoContent}>
-                <Text style={[styles.infoLabel, { color: branding.textSecondary }]}>
-                  Phone Number
-                </Text>
-                <Text style={[styles.infoValue, { color: branding.textPrimary }]}>
-                  {profile.phoneNumber}
-                </Text>
-              </View>
-            </View>
-          )}
-
-          {profile?.country && (
-            <View style={[styles.infoCard, { backgroundColor: branding.surfaceColor }]}>
-              <Ionicons name="location" size={20} color={branding.textSecondary} />
-              <View style={styles.infoContent}>
-                <Text style={[styles.infoLabel, { color: branding.textSecondary }]}>
-                  Country
-                </Text>
-                <Text style={[styles.infoValue, { color: branding.textPrimary }]}>
-                  {profile.country === 'AE' ? '🇦🇪 UAE' : '🇸🇦 Saudi Arabia'}
-                </Text>
-              </View>
+            <View style={styles.phoneContainer}>
+              <Ionicons name="call" size={14} color={branding.textSecondary} />
+              <Text style={[styles.phone, { color: branding.textSecondary }]}>
+                {profile.phoneNumber}
+              </Text>
             </View>
           )}
         </View>
 
-        {/* Settings */}
+        {/* Settings Section */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: branding.textPrimary }]}>
             Settings
           </Text>
 
+          {/* Gmail Sync */}
           <TouchableOpacity
-            style={[styles.settingCard, { backgroundColor: branding.surfaceColor }]}
-            onPress={() => router.push('/auth/setup-profile')}
+            style={[styles.menuItem, { backgroundColor: branding.surfaceColor }]}
+            onPress={() => router.push('/email-settings')}
           >
-            <Ionicons name="person" size={20} color={branding.textSecondary} />
-            <Text style={[styles.settingText, { color: branding.textPrimary }]}>
-              Edit Profile
-            </Text>
+            <View style={[styles.menuIcon, { backgroundColor: '#9BFF3220' }]}>
+              <Ionicons name="mail" size={24} color="#9BFF32" />
+            </View>
+            <View style={styles.menuContent}>
+              <Text style={[styles.menuTitle, { color: branding.textPrimary }]}>
+                Gmail Sync
+              </Text>
+              <Text style={[styles.menuSubtitle, { color: branding.textSecondary }]}>
+                Connect email for transaction tracking
+              </Text>
+            </View>
             <Ionicons name="chevron-forward" size={20} color={branding.textSecondary} />
           </TouchableOpacity>
 
+          {/* Analytics */}
           <TouchableOpacity
-            style={[styles.settingCard, { backgroundColor: branding.surfaceColor }]}
+            style={[styles.menuItem, { backgroundColor: branding.surfaceColor }]}
+            onPress={() => router.push('/analytics')}
           >
-            <Ionicons name="notifications" size={20} color={branding.textSecondary} />
-            <Text style={[styles.settingText, { color: branding.textPrimary }]}>
-              Notifications
-            </Text>
+            <View style={[styles.menuIcon, { backgroundColor: '#3DEEFF20' }]}>
+              <Ionicons name="stats-chart" size={24} color="#3DEEFF" />
+            </View>
+            <View style={styles.menuContent}>
+              <Text style={[styles.menuTitle, { color: branding.textPrimary }]}>
+                Analytics
+              </Text>
+              <Text style={[styles.menuSubtitle, { color: branding.textSecondary }]}>
+                View spending insights
+              </Text>
+            </View>
             <Ionicons name="chevron-forward" size={20} color={branding.textSecondary} />
           </TouchableOpacity>
 
+          {/* Notifications */}
           <TouchableOpacity
-            style={[styles.settingCard, { backgroundColor: branding.surfaceColor }]}
+            style={[styles.menuItem, { backgroundColor: branding.surfaceColor }]}
+            onPress={() => Alert.alert('Coming Soon', 'Notification settings will be available soon')}
           >
-            <Ionicons name="shield-checkmark" size={20} color={branding.textSecondary} />
-            <Text style={[styles.settingText, { color: branding.textPrimary }]}>
-              Privacy & Security
-            </Text>
-            <Ionicons name="chevron-forward" size={20} color={branding.textSecondary} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.settingCard, { backgroundColor: branding.surfaceColor }]}
-          >
-            <Ionicons name="help-circle" size={20} color={branding.textSecondary} />
-            <Text style={[styles.settingText, { color: branding.textPrimary }]}>
-              Help & Support
-            </Text>
+            <View style={[styles.menuIcon, { backgroundColor: '#FFD93D20' }]}>
+              <Ionicons name="notifications" size={24} color="#FFD93D" />
+            </View>
+            <View style={styles.menuContent}>
+              <Text style={[styles.menuTitle, { color: branding.textPrimary }]}>
+                Notifications
+              </Text>
+              <Text style={[styles.menuSubtitle, { color: branding.textSecondary }]}>
+                Manage alerts and reminders
+              </Text>
+            </View>
             <Ionicons name="chevron-forward" size={20} color={branding.textSecondary} />
           </TouchableOpacity>
         </View>
 
-        {/* Logout */}
+        {/* Support Section */}
         <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: branding.textPrimary }]}>
+            Support
+          </Text>
+
           <TouchableOpacity
-            style={styles.logoutButton}
-            onPress={handleLogout}
+            style={[styles.menuItem, { backgroundColor: branding.surfaceColor }]}
+            onPress={() => Alert.alert('Help', 'Contact support@cardiyo.app for assistance')}
           >
-            <LinearGradient
-              colors={['#FF6B6B', '#FF8E53']}
-              style={styles.logoutGradient}
-            >
-              <Ionicons name="log-out" size={20} color="#060612" />
-              <Text style={styles.logoutText}>Logout</Text>
-            </LinearGradient>
+            <View style={[styles.menuIcon, { backgroundColor: '#9BFF3220' }]}>
+              <Ionicons name="help-circle" size={24} color="#9BFF32" />
+            </View>
+            <View style={styles.menuContent}>
+              <Text style={[styles.menuTitle, { color: branding.textPrimary }]}>
+                Help & Support
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={branding.textSecondary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.menuItem, { backgroundColor: branding.surfaceColor }]}
+            onPress={() => Alert.alert('About', 'Cardiyo v1.0.0\nSmart credit card tracking for UAE')}
+          >
+            <View style={[styles.menuIcon, { backgroundColor: '#3DEEFF20' }]}>
+              <Ionicons name="information-circle" size={24} color="#3DEEFF" />
+            </View>
+            <View style={styles.menuContent}>
+              <Text style={[styles.menuTitle, { color: branding.textPrimary }]}>
+                About
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={branding.textSecondary} />
           </TouchableOpacity>
         </View>
+
+        {/* Logout Button */}
+        <TouchableOpacity
+          style={styles.logoutButton}
+          onPress={handleLogout}
+        >
+          <View style={[styles.logoutContent, { backgroundColor: branding.surfaceColor }]}>
+            <Ionicons name="log-out" size={24} color="#FF6B6B" />
+            <Text style={styles.logoutText}>Sign Out</Text>
+          </View>
+        </TouchableOpacity>
 
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -311,30 +205,25 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#060612' },
-  guestContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
-  guestIcon: { marginBottom: 32 },
-  guestIconGradient: { width: 140, height: 140, borderRadius: 70, justifyContent: 'center', alignItems: 'center' },
-  guestTitle: { fontSize: 28, fontWeight: 'bold', marginBottom: 12 },
-  guestSubtitle: { fontSize: 16, textAlign: 'center', marginBottom: 40, lineHeight: 24 },
-  loginButton: { borderRadius: 16, overflow: 'hidden', width: '100%' },
-  loginButtonGradient: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 20, gap: 12 },
-  loginButtonText: { fontSize: 18, fontWeight: '600', color: '#060612' },
-  header: { alignItems: 'center', paddingTop: 80, paddingBottom: 40, paddingHorizontal: 24 },
-  avatarContainer: { marginBottom: 20 },
-  avatar: { width: 100, height: 100, borderRadius: 50, justifyContent: 'center', alignItems: 'center', elevation: 8, shadowColor: '#9BFF32', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 12 },
-  avatarText: { fontSize: 40, fontWeight: 'bold', color: '#060612' },
-  name: { fontSize: 28, fontWeight: 'bold', marginBottom: 8 },
-  phone: { fontSize: 16 },
-  section: { paddingHorizontal: 24, marginBottom: 32 },
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 16 },
-  infoCard: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 12, marginBottom: 12, gap: 16 },
-  infoContent: { flex: 1 },
-  infoLabel: { fontSize: 12, marginBottom: 4 },
-  infoValue: { fontSize: 16, fontWeight: '600' },
-  settingCard: { flexDirection: 'row', alignItems: 'center', padding: 18, borderRadius: 12, marginBottom: 12, gap: 16 },
-  settingText: { flex: 1, fontSize: 16, fontWeight: '500' },
-  logoutButton: { borderRadius: 12, overflow: 'hidden' },
-  logoutGradient: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 18, gap: 12 },
-  logoutText: { fontSize: 16, fontWeight: '600', color: '#060612' },
+  loading: { flex: 1 },
+  header: { paddingTop: 60, paddingHorizontal: 24, paddingBottom: 20 },
+  headerTitle: { fontSize: 32, fontWeight: 'bold' },
+  content: { paddingHorizontal: 24 },
+  profileCard: { padding: 24, borderRadius: 20, alignItems: 'center', marginBottom: 32 },
+  avatar: { width: 80, height: 80, borderRadius: 40, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
+  avatarText: { fontSize: 32, fontWeight: 'bold' },
+  name: { fontSize: 24, fontWeight: 'bold', marginBottom: 4 },
+  email: { fontSize: 14, marginBottom: 8 },
+  phoneContainer: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  phone: { fontSize: 14 },
+  section: { marginBottom: 32 },
+  sectionTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 16 },
+  menuItem: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 16, marginBottom: 12 },
+  menuIcon: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginRight: 16 },
+  menuContent: { flex: 1 },
+  menuTitle: { fontSize: 16, fontWeight: '600', marginBottom: 2 },
+  menuSubtitle: { fontSize: 13 },
+  logoutButton: { marginTop: 8 },
+  logoutContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 18, borderRadius: 16, gap: 12 },
+  logoutText: { fontSize: 16, fontWeight: '600', color: '#FF6B6B' },
 });

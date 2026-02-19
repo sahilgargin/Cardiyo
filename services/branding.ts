@@ -1,120 +1,190 @@
 import { db } from '../firebaseConfig';
 import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 
-export interface Gradient {
-  colors: [string, string];
-  angle: number;
-}
-
 export interface AppBranding {
-  appName: string;
-  tagline: string;
+  primaryColor: string;
+  secondaryColor: string;
   backgroundColor: string;
   surfaceColor: string;
   textPrimary: string;
   textSecondary: string;
   success: string;
-  error: string;
   warning: string;
-  info: string;
-  primaryGradient: Gradient;
-  secondaryGradient: Gradient;
+  error: string;
+  primaryGradient: {
+    colors: string[];
+    start: { x: number; y: number };
+    end: { x: number; y: number };
+  };
+  logo: string;
+  appName: string;
+  tagline: string;
 }
 
-export interface CategoryBranding {
+export interface BankBranding {
   id: string;
   name: string;
-  icon: string;
-  emoji: string;
-  gradient: Gradient;
-  description: string;
+  shortName: string;
+  logo: string;
+  primaryColor: string;
+  gradient: string[];
+  country: string;
 }
 
 export interface CardBranding {
-  gradient: Gradient;
+  gradient: string[];
   textColor: string;
   chipColor: string;
+  accentColor: string;
   networkLogo: string;
+  pattern?: string;
 }
 
-// Cache
+// Cache for branding data
 let appBrandingCache: AppBranding | null = null;
-let categoriesCache: CategoryBranding[] | null = null;
+let bankBrandingCache: Map<string, BankBranding> = new Map();
+let cardBrandingCache: Map<string, CardBranding> = new Map();
 
+/**
+ * Get app-wide branding from Firestore
+ */
 export async function getAppBranding(): Promise<AppBranding> {
-  if (appBrandingCache) return appBrandingCache;
-
   try {
-    const docRef = doc(db, 'branding', 'app');
-    const docSnap = await getDoc(docRef);
-
-    if (docSnap.exists()) {
-      appBrandingCache = docSnap.data() as AppBranding;
+    // Return cache if available
+    if (appBrandingCache) {
       return appBrandingCache;
     }
+
+    const brandingDoc = await getDoc(doc(db, 'config', 'branding'));
+    
+    if (brandingDoc.exists()) {
+      appBrandingCache = brandingDoc.data() as AppBranding;
+      return appBrandingCache;
+    }
+
+    // Fallback to default if not in Firestore
+    return getDefaultBranding();
   } catch (error) {
     console.error('Error fetching app branding:', error);
+    return getDefaultBranding();
   }
-
-  // Fallback
-  return {
-    appName: 'Cardiyo',
-    tagline: 'Smart cards, smarter offers',
-    backgroundColor: '#060612',
-    surfaceColor: '#1a1a1a',
-    textPrimary: '#F9F9F9',
-    textSecondary: '#888888',
-    success: '#9BFF32',
-    error: '#FF97EB',
-    warning: '#FFEFA0',
-    info: '#3DEEFF',
-    primaryGradient: { colors: ['#9BFF32', '#3DEEFF'], angle: 45 },
-    secondaryGradient: { colors: ['#FF97EB', '#FFA97C'], angle: 45 },
-  };
 }
 
-export async function getAllCategories(): Promise<CategoryBranding[]> {
-  if (categoriesCache) return categoriesCache;
-
+/**
+ * Get bank branding from Firestore
+ */
+export async function getBankBranding(bankId: string): Promise<BankBranding | null> {
   try {
-    const categoriesRef = collection(db, 'branding/categories/items');
-    const snapshot = await getDocs(categoriesRef);
+    // Check cache
+    if (bankBrandingCache.has(bankId)) {
+      return bankBrandingCache.get(bankId)!;
+    }
+
+    const bankDoc = await getDoc(doc(db, 'config', 'banks', 'items', bankId));
     
-    categoriesCache = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    } as CategoryBranding));
-    
-    return categoriesCache;
+    if (bankDoc.exists()) {
+      const branding = bankDoc.data() as BankBranding;
+      bankBrandingCache.set(bankId, branding);
+      return branding;
+    }
+
+    return null;
   } catch (error) {
-    console.error('Error fetching categories:', error);
+    console.error('Error fetching bank branding:', error);
+    return null;
+  }
+}
+
+/**
+ * Get all banks branding
+ */
+export async function getAllBanksBranding(): Promise<BankBranding[]> {
+  try {
+    const banksSnapshot = await getDocs(collection(db, 'config', 'banks', 'items'));
+    
+    const banks: BankBranding[] = [];
+    banksSnapshot.forEach(doc => {
+      const branding = { id: doc.id, ...doc.data() } as BankBranding;
+      bankBrandingCache.set(doc.id, branding);
+      banks.push(branding);
+    });
+
+    return banks;
+  } catch (error) {
+    console.error('Error fetching all banks branding:', error);
     return [];
   }
 }
 
-export async function getCardBranding(cardId: string, bankId: string): Promise<CardBranding> {
+/**
+ * Get card branding from Firestore
+ */
+export async function getCardBranding(cardId: string): Promise<CardBranding> {
   try {
-    const cardRef = doc(db, 'cards', cardId);
-    const cardSnap = await getDoc(cardRef);
-
-    if (cardSnap.exists()) {
-      const cardData = cardSnap.data();
-      return {
-        gradient: cardData.gradient || { colors: ['#2C3E50', '#1A252F'], angle: 135 },
-        textColor: cardData.textColor || '#FFFFFF',
-        chipColor: cardData.chipColor || '#FFD700',
-        networkLogo: cardData.networkLogo || 'mastercard',
-      };
+    // Check cache
+    if (cardBrandingCache.has(cardId)) {
+      return cardBrandingCache.get(cardId)!;
     }
+
+    const cardDoc = await getDoc(doc(db, 'branding', 'cards', 'items', cardId));
+    
+    if (cardDoc.exists()) {
+      const branding = cardDoc.data() as CardBranding;
+      cardBrandingCache.set(cardId, branding);
+      return branding;
+    }
+
+    // Return default if not found
+    return getDefaultCardBranding();
   } catch (error) {
     console.error('Error fetching card branding:', error);
+    return getDefaultCardBranding();
   }
+}
 
-  // Fallback
+/**
+ * Clear branding cache (call this when branding is updated)
+ */
+export function clearBrandingCache() {
+  appBrandingCache = null;
+  bankBrandingCache.clear();
+  cardBrandingCache.clear();
+}
+
+/**
+ * Default app branding (fallback)
+ */
+function getDefaultBranding(): AppBranding {
   return {
-    gradient: { colors: ['#2C3E50', '#1A252F'], angle: 135 },
+    primaryColor: '#9BFF32',
+    secondaryColor: '#3DEEFF',
+    backgroundColor: '#060612',
+    surfaceColor: '#1a1a1a',
+    textPrimary: '#FFFFFF',
+    textSecondary: '#999999',
+    success: '#9BFF32',
+    warning: '#FFD93D',
+    error: '#FF6B6B',
+    primaryGradient: {
+      colors: ['#9BFF32', '#3DEEFF'],
+      start: { x: 0, y: 0 },
+      end: { x: 1, y: 0 }
+    },
+    logo: '💳',
+    appName: 'Cardiyo',
+    tagline: 'Smart credit card tracking for UAE',
+  };
+}
+
+/**
+ * Default card branding (fallback)
+ */
+function getDefaultCardBranding(): CardBranding {
+  return {
+    gradient: ['#1a1a1a', '#2a2a2a'],
     textColor: '#FFFFFF',
     chipColor: '#FFD700',
-    networkLogo: 'mastercard',
+    accentColor: '#9BFF32',
+    networkLogo: 'card',
   };
 }
