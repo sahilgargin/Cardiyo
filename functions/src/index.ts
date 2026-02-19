@@ -2,20 +2,14 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {onRequest} from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import {google} from "googleapis";
+import {defineSecret} from "firebase-functions/params";
 
 admin.initializeApp();
 const db = admin.firestore();
 
-const CLIENT_ID = "260028785813-e3j7h0rjs8bo3uhnbd1h000f00g7vl5h.apps.googleusercontent.com";
-const CLIENT_SECRET = "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";
-const REDIRECT_URI =
-  "https://us-central1-my-vibe-app-af0db.cloudfunctions.net/gmailCallback";
-
-const oauth2Client = new google.auth.OAuth2(
-  CLIENT_ID,
-  CLIENT_SECRET,
-  REDIRECT_URI
-);
+// Use Firebase secrets instead of hardcoded values
+const googleClientId = defineSecret("GOOGLE_CLIENT_ID");
+const googleClientSecret = defineSecret("GOOGLE_CLIENT_SECRET");
 
 const BANK_PATTERNS: {[key: string]: string[]} = {
   ADIB: ["adib.ae", "adibank"],
@@ -24,10 +18,16 @@ const BANK_PATTERNS: {[key: string]: string[]} = {
   Mashreq: ["mashreq.com", "mashreqbank"],
 };
 
-export const initiateGmailAuth = onCall(async (request) => {
+export const initiateGmailAuth = onCall({secrets: [googleClientId, googleClientSecret]}, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Must be authenticated");
   }
+
+  const oauth2Client = new google.auth.OAuth2(
+    googleClientId.value(),
+    googleClientSecret.value(),
+    "https://us-central1-my-vibe-app-af0db.cloudfunctions.net/gmailCallback"
+  );
 
   const authUrl = oauth2Client.generateAuthUrl({
     access_type: "offline",
@@ -42,7 +42,7 @@ export const initiateGmailAuth = onCall(async (request) => {
   return {authUrl};
 });
 
-export const gmailCallback = onRequest(async (req, res) => {
+export const gmailCallback = onRequest({secrets: [googleClientId, googleClientSecret]}, async (req, res) => {
   const {code, state} = req.query;
 
   if (!code || !state) {
@@ -51,6 +51,12 @@ export const gmailCallback = onRequest(async (req, res) => {
   }
 
   const userId = state as string;
+
+  const oauth2Client = new google.auth.OAuth2(
+    googleClientId.value(),
+    googleClientSecret.value(),
+    "https://us-central1-my-vibe-app-af0db.cloudfunctions.net/gmailCallback"
+  );
 
   try {
     const {tokens} = await oauth2Client.getToken(code as string);
@@ -92,52 +98,15 @@ export const gmailCallback = onRequest(async (req, res) => {
               max-width: 400px;
               width: 100%;
             }
-            .icon {
-              width: 80px;
-              height: 80px;
-              background: linear-gradient(135deg, #9BFF32, #3DEEFF);
-              border-radius: 50%;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              font-size: 40px;
-              margin: 0 auto 24px;
-            }
-            h1 {
-              color: #060612;
-              font-size: 28px;
-              margin-bottom: 12px;
-              font-weight: 700;
-            }
-            p {
-              color: #666;
-              font-size: 16px;
-              line-height: 1.6;
-              margin-bottom: 32px;
-            }
-            button {
-              background: #060612;
-              color: white;
-              border: none;
-              padding: 16px 32px;
-              border-radius: 12px;
-              font-size: 16px;
-              font-weight: 600;
-              cursor: pointer;
-              width: 100%;
-            }
+            h1 { color: #060612; font-size: 28px; margin-bottom: 12px; }
+            p { color: #666; font-size: 16px; margin-bottom: 32px; }
           </style>
         </head>
         <body>
           <div class="card">
-            <div class="icon">✅</div>
-            <h1>Gmail Connected!</h1>
-            <p>Return to the app and tap "Sync Now" to import transactions.</p>
-            <button onclick="window.close()">Close Window</button>
+            <h1>✅ Gmail Connected!</h1>
+            <p>Return to the app and tap "Sync Now"</p>
           </div>
-          <script>
-            setTimeout(() => window.close(), 3000);
-          </script>
         </body>
       </html>
     `);
@@ -147,7 +116,7 @@ export const gmailCallback = onRequest(async (req, res) => {
   }
 });
 
-export const syncGmail = onCall<{daysBack?: number}>(async (request) => {
+export const syncGmail = onCall<{daysBack?: number}>({secrets: [googleClientId, googleClientSecret]}, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Must be authenticated");
   }
@@ -156,7 +125,6 @@ export const syncGmail = onCall<{daysBack?: number}>(async (request) => {
   const daysBack = request.data.daysBack || 30;
 
   try {
-    // Get user's cards for matching
     const userCardsSnapshot = await db
       .collection("users")
       .doc(userId)
@@ -182,6 +150,12 @@ export const syncGmail = onCall<{daysBack?: number}>(async (request) => {
     }
 
     const tokenData = tokensSnapshot.docs[0].data();
+
+    const oauth2Client = new google.auth.OAuth2(
+      googleClientId.value(),
+      googleClientSecret.value(),
+      "https://us-central1-my-vibe-app-af0db.cloudfunctions.net/gmailCallback"
+    );
 
     oauth2Client.setCredentials({
       access_token: tokenData.accessToken,
@@ -244,7 +218,6 @@ export const syncGmail = onCall<{daysBack?: number}>(async (request) => {
         const transaction = parseTransaction(body, from);
 
         if (transaction) {
-          // Match card by last 4 digits
           let matchedCard = null;
           if (transaction.cardLastFour) {
             matchedCard = userCards.find(
