@@ -7,21 +7,13 @@ export default function RootLayout() {
       <Stack.Screen name="auth/welcome" />
       <Stack.Screen name="auth/verify-phone" />
       <Stack.Screen name="auth/setup-profile" />
+      <Stack.Screen name="auth/verify-email" />
       <Stack.Screen name="(tabs)" />
-      <Stack.Screen 
-        name="add-card/select-bank"
-        options={{
-          presentation: 'modal',
-          animation: 'slide_from_bottom',
-        }}
-      />
-      <Stack.Screen 
-        name="add-card/select-card"
-        options={{
-          presentation: 'modal',
-          animation: 'slide_from_right',
-        }}
-      />
+      <Stack.Screen name="add-card/select-bank" />
+      <Stack.Screen name="add-card/select-card" />
+      <Stack.Screen name="add-transaction" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="analytics" />
+      <Stack.Screen name="email-settings" />
     </Stack>
   );
 }

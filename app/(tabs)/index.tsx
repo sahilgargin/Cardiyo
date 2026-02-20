@@ -1,241 +1,182 @@
-import { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, RefreshControl } from 'react-native';
+import { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { auth } from '../../firebaseConfig';
-import { getUserLocation, UserLocation } from '../../services/location';
-import { getAppBranding, getAllCategories, AppBranding, CategoryBranding } from '../../services/branding';
-
-const { width } = Dimensions.get('window');
-const CARD_WIDTH = (width - 64) / 2;
+import { Ionicons } from '@expo/vector-icons';
+import { getAppBranding, AppBranding } from '../../services/branding';
+import { getUserProfile } from '../../services/auth';
+import { detectUserArea } from '../../services/location';
 
 export default function HomeScreen() {
   const router = useRouter();
   const [branding, setBranding] = useState<AppBranding | null>(null);
-  const [categories, setCategories] = useState<CategoryBranding[]>([]);
-  const [location, setLocation] = useState<UserLocation | null>(null);
-  const [greeting, setGreeting] = useState('');
+  const [userName, setUserName] = useState('');
+  const [userArea, setUserArea] = useState('');
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    loadBranding();
-    setGreetingMessage();
+    loadData();
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      setGreetingMessage();
-    }, [])
-  );
-
-  function setGreetingMessage() {
-    const hour = new Date().getHours();
-    if (hour < 12) setGreeting('Good Morning');
-    else if (hour < 17) setGreeting('Good Afternoon');
-    else setGreeting('Good Evening');
-  }
-
-  async function loadBranding() {
+  async function loadData() {
     const app = await getAppBranding();
-    const cats = await getAllCategories();
-    const loc = await getUserLocation();
-    
     setBranding(app);
-    setCategories(cats);
-    setLocation(loc);
+
+    const profile = await getUserProfile();
+    if (profile?.firstName) {
+      setUserName(profile.firstName);
+    }
+
+    const area = await detectUserArea();
+    setUserArea(area);
   }
 
   async function handleRefresh() {
     setRefreshing(true);
-    await loadBranding();
+    await loadData();
     setRefreshing(false);
   }
 
-  function handleCategoryPress(categoryId: string) {
-    router.push({
-      pathname: '/(tabs)/offers',
-      params: { category: categoryId }
-    });
-  }
-
-  function getFirstName() {
-    if (!auth.currentUser) return 'Guest';
-    
-    const displayName = auth.currentUser.displayName;
-    if (displayName) {
-      return displayName.split(' ')[0];
-    }
-    
-    const email = auth.currentUser.email;
-    if (email) {
-      return email.split('@')[0];
-    }
-    
-    return 'User';
-  }
-
   if (!branding) {
-    return (
-      <View style={styles.loading}>
-        <Text style={{ color: '#9BFF32' }}>Loading...</Text>
-      </View>
-    );
+    return <View style={styles.loading}><Text>Loading...</Text></View>;
   }
-
-  const isGuest = !auth.currentUser;
-  const firstName = getFirstName();
 
   return (
     <View style={[styles.container, { backgroundColor: branding.backgroundColor }]}>
-      <LinearGradient
-        colors={['#060612', '#0a0a1a', '#060612']}
-        style={StyleSheet.absoluteFill}
-      />
+      <LinearGradient colors={['#060612', '#1a1a2e', '#060612']} style={StyleSheet.absoluteFill} />
 
-      <ScrollView 
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            tintColor={branding.success}
-          />
-        }
-      >
-        <View style={styles.header}>
-          <View style={styles.headerTop}>
-            <View>
-              <Text style={[styles.greeting, { color: branding.textSecondary }]}>
-                {greeting} 👋
-              </Text>
-              <Text style={[styles.userName, { color: branding.textPrimary }]}>
-                {firstName}
-              </Text>
-            </View>
-            
-            {location?.area && (
-              <View style={styles.locationBadge}>
-                <LinearGradient
-                  colors={['rgba(155, 255, 50, 0.1)', 'rgba(61, 238, 255, 0.1)']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.locationGradient}
-                >
-                  <Text style={[styles.locationText, { color: branding.success }]}>
-                    {location.area.name}
-                  </Text>
-                </LinearGradient>
-              </View>
-            )}
-          </View>
-
-          {isGuest && (
-            <TouchableOpacity
-              style={styles.guestBanner}
-              onPress={() => router.push('/auth/welcome')}
-              activeOpacity={0.8}
+      <View style={styles.header}>
+        <View>
+          <Text style={[styles.greeting, { color: branding.textSecondary }]}>
+            Welcome back,
+          </Text>
+          <Text style={[styles.name, { color: branding.textPrimary }]}>
+            {userName || 'User'}
+          </Text>
+          {userArea && (
+            <TouchableOpacity 
+              style={styles.locationContainer}
+              onPress={() => router.push('/select-area')}
             >
-              <LinearGradient
-                colors={branding.primaryGradient.colors as [string, string]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.guestBannerGradient}
-              >
-                <View style={styles.guestBannerContent}>
-                  <View style={styles.guestIcon}>
-                    <Ionicons name="log-in" size={24} color="#060612" />
-                  </View>
-                  <View style={styles.guestText}>
-                    <Text style={styles.guestTitle}>Login for More</Text>
-                    <Text style={styles.guestSubtitle}>
-                      Get personalized card offers
-                    </Text>
-                  </View>
-                </View>
-                <Ionicons name="arrow-forward" size={20} color="#060612" />
-              </LinearGradient>
+              <Ionicons name="location" size={14} color={branding.primaryColor} />
+              <Text style={[styles.location, { color: branding.textSecondary }]}>
+                {userArea}
+              </Text>
+              <Ionicons name="chevron-forward" size={14} color={branding.textSecondary} />
             </TouchableOpacity>
           )}
         </View>
+        
+        <TouchableOpacity
+          style={[styles.notificationButton, { backgroundColor: branding.surfaceColor }]}
+          onPress={() => {}}
+        >
+          <Ionicons name="notifications" size={24} color={branding.textPrimary} />
+          <View style={[styles.badge, { backgroundColor: branding.error }]} />
+        </TouchableOpacity>
+      </View>
 
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: branding.textPrimary }]}>
-              Categories
-            </Text>
-            <Text style={[styles.sectionCount, { color: branding.textSecondary }]}>
-              {categories.length}
-            </Text>
-          </View>
-
-          <View style={styles.categoriesGrid}>
-            {categories.map((category) => (
-              <TouchableOpacity
-                key={category.id}
-                style={[styles.categoryCard, { width: CARD_WIDTH }]}
-                activeOpacity={0.8}
-                onPress={() => handleCategoryPress(category.id)}
-              >
-                <LinearGradient
-                  colors={category.gradient.colors as [string, string]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.categoryGradient}
-                >
-                  <View style={styles.categoryIcon}>
-                    <Text style={styles.categoryEmoji}>{category.emoji}</Text>
-                  </View>
-                  <Text style={styles.categoryName}>{category.name}</Text>
-                  <Text style={styles.categoryCount}>
-                    Tap to explore
-                  </Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
+      <ScrollView
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={branding.success} />}
+        contentContainerStyle={styles.content}
+      >
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: branding.textPrimary }]}>
             Quick Actions
           </Text>
-
+          
           <View style={styles.actionsGrid}>
             <TouchableOpacity
-              style={styles.actionCard}
-              onPress={() => router.push('/(tabs)/offers')}
-              activeOpacity={0.8}
+              style={[styles.actionCard, { backgroundColor: branding.surfaceColor }]}
+              onPress={() => router.push('/add-card/select-bank')}
             >
-              <View style={[styles.actionIcon, { backgroundColor: 'rgba(155, 255, 50, 0.1)' }]}>
-                <Ionicons name="pricetag" size={24} color="#9BFF32" />
+              <View style={[styles.actionIcon, { backgroundColor: branding.primaryColor + '20' }]}>
+                <Ionicons name="add" size={24} color={branding.primaryColor} />
               </View>
-              <Text style={[styles.actionTitle, { color: branding.textPrimary }]}>
-                Browse Offers
-              </Text>
-              <Text style={[styles.actionSubtitle, { color: branding.textSecondary }]}>
-                Nearby & Online
+              <Text style={[styles.actionText, { color: branding.textPrimary }]}>
+                Add Card
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.actionCard}
-              onPress={() => router.push('/(tabs)/wallet')}
-              activeOpacity={0.8}
+              style={[styles.actionCard, { backgroundColor: branding.surfaceColor }]}
+              onPress={() => router.push('/add-transaction')}
             >
-              <View style={[styles.actionIcon, { backgroundColor: 'rgba(61, 238, 255, 0.1)' }]}>
-                <Ionicons name="wallet" size={24} color="#3DEEFF" />
+              <View style={[styles.actionIcon, { backgroundColor: branding.secondaryColor + '20' }]}>
+                <Ionicons name="receipt" size={24} color={branding.secondaryColor} />
               </View>
-              <Text style={[styles.actionTitle, { color: branding.textPrimary }]}>
-                My Cards
+              <Text style={[styles.actionText, { color: branding.textPrimary }]}>
+                Add Transaction
               </Text>
-              <Text style={[styles.actionSubtitle, { color: branding.textSecondary }]}>
-                Manage wallet
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.actionCard, { backgroundColor: branding.surfaceColor }]}
+              onPress={() => router.push('/analytics')}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: branding.warning + '20' }]}>
+                <Ionicons name="stats-chart" size={24} color={branding.warning} />
+              </View>
+              <Text style={[styles.actionText, { color: branding.textPrimary }]}>
+                Analytics
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.actionCard, { backgroundColor: branding.surfaceColor }]}
+              onPress={() => router.push('/(tabs)/offers')}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: branding.error + '20' }]}>
+                <Ionicons name="pricetag" size={24} color={branding.error} />
+              </View>
+              <Text style={[styles.actionText, { color: branding.textPrimary }]}>
+                Offers
               </Text>
             </TouchableOpacity>
           </View>
         </View>
+
+        {userArea && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: branding.textPrimary }]}>
+                Offers in {userArea}
+              </Text>
+              <TouchableOpacity onPress={() => router.push('/(tabs)/offers')}>
+                <Text style={[styles.seeAll, { color: branding.primaryColor }]}>
+                  See All
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.featuredCard, { backgroundColor: branding.surfaceColor }]}
+              onPress={() => router.push('/(tabs)/offers')}
+            >
+              <LinearGradient
+                colors={branding.primaryGradient.colors as [string, string]}
+                start={branding.primaryGradient.start}
+                end={branding.primaryGradient.end}
+                style={styles.featuredGradient}
+              >
+                <View style={styles.featuredContent}>
+                  <Text style={styles.featuredTitle}>
+                    20% Off Dining
+                  </Text>
+                  <Text style={styles.featuredSubtitle}>
+                    At participating restaurants in {userArea}
+                  </Text>
+                  <View style={styles.featuredBadge}>
+                    <Text style={styles.featuredBadgeText}>
+                      This Weekend
+                    </Text>
+                  </View>
+                </View>
+                <Ionicons name="restaurant" size={48} color="rgba(255,255,255,0.3)" />
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -245,35 +186,28 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#060612' },
-  header: { paddingTop: 60, paddingHorizontal: 24, marginBottom: 32 },
-  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 },
+  loading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 60, paddingHorizontal: 24, paddingBottom: 20 },
   greeting: { fontSize: 14, marginBottom: 4 },
-  userName: { fontSize: 28, fontWeight: 'bold' },
-  locationBadge: { borderRadius: 12, overflow: 'hidden' },
-  locationGradient: { paddingHorizontal: 12, paddingVertical: 8 },
-  locationText: { fontSize: 13, fontWeight: '600' },
-  guestBanner: { borderRadius: 16, overflow: 'hidden' },
-  guestBannerGradient: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16 },
-  guestBannerContent: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-  guestIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(6, 6, 18, 0.2)', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  guestText: { flex: 1 },
-  guestTitle: { fontSize: 16, fontWeight: 'bold', color: '#060612', marginBottom: 2 },
-  guestSubtitle: { fontSize: 13, color: 'rgba(6, 6, 18, 0.7)' },
-  section: { paddingHorizontal: 24, marginBottom: 32 },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-  sectionTitle: { fontSize: 22, fontWeight: 'bold' },
-  sectionCount: { fontSize: 14, fontWeight: '600' },
-  categoriesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
-  categoryCard: { borderRadius: 20, overflow: 'hidden' },
-  categoryGradient: { padding: 20, minHeight: 160, justifyContent: 'space-between' },
-  categoryIcon: { width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(6, 6, 18, 0.2)', justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
-  categoryEmoji: { fontSize: 28 },
-  categoryName: { fontSize: 17, fontWeight: 'bold', color: '#060612', marginBottom: 4 },
-  categoryCount: { fontSize: 13, color: 'rgba(6, 6, 18, 0.7)', fontWeight: '600' },
-  actionsGrid: { flexDirection: 'row', gap: 16 },
-  actionCard: { flex: 1, backgroundColor: '#1a1a1a', borderRadius: 16, padding: 20 },
-  actionIcon: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
-  actionTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
-  actionSubtitle: { fontSize: 13 },
+  name: { fontSize: 28, fontWeight: 'bold', marginBottom: 4 },
+  locationContainer: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  location: { fontSize: 12 },
+  notificationButton: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', position: 'relative' },
+  badge: { position: 'absolute', top: 8, right: 8, width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: '#060612' },
+  content: { padding: 24, paddingTop: 0 },
+  section: { marginBottom: 32 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  sectionTitle: { fontSize: 20, fontWeight: 'bold' },
+  seeAll: { fontSize: 14, fontWeight: '600' },
+  actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  actionCard: { width: '48%', padding: 20, borderRadius: 16, alignItems: 'center' },
+  actionIcon: { width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+  actionText: { fontSize: 14, fontWeight: '600', textAlign: 'center' },
+  featuredCard: { borderRadius: 20, overflow: 'hidden', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 },
+  featuredGradient: { padding: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  featuredContent: { flex: 1 },
+  featuredTitle: { fontSize: 24, fontWeight: 'bold', color: '#060612', marginBottom: 4 },
+  featuredSubtitle: { fontSize: 14, color: '#060612', marginBottom: 12, opacity: 0.8 },
+  featuredBadge: { backgroundColor: 'rgba(6, 6, 18, 0.2)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, alignSelf: 'flex-start' },
+  featuredBadgeText: { fontSize: 12, fontWeight: 'bold', color: '#060612' },
 });

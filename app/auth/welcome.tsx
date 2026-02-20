@@ -1,44 +1,35 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import { sendOTP } from '../../services/auth';
+import { Svg, Path, Rect, Circle, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
 
 export default function WelcomeScreen() {
   const router = useRouter();
   const [phoneNumber, setPhoneNumber] = useState('');
   const [loading, setLoading] = useState(false);
 
-  function handleSkip() {
-    router.replace('/(tabs)');
-  }
-
   async function handleContinue() {
-    if (phoneNumber.length < 9) return;
+    if (!phoneNumber || phoneNumber.length < 9) {
+      Alert.alert('Invalid Number', 'Please enter a valid phone number');
+      return;
+    }
 
     setLoading(true);
-    const fullPhoneNumber = '+971' + phoneNumber;
 
-    // Generate OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('📱 DEVELOPMENT OTP');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('Phone:', fullPhoneNumber);
-    console.log('Code: ', otp);
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
-    setLoading(false);
-
-    // Pass OTP through navigation params (development only)
-    router.push({
-      pathname: '/auth/verify-phone',
-      params: { 
-        phoneNumber: fullPhoneNumber,
-        devOtp: otp // Development only
-      }
-    });
+    try {
+      const fullNumber = phoneNumber.startsWith('971') ? `+${phoneNumber}` : `+971${phoneNumber}`;
+      await sendOTP(fullNumber);
+      router.push({
+        pathname: '/auth/verify-phone',
+        params: { phoneNumber: fullNumber }
+      });
+    } catch (error: any) {
+      Alert.alert('Error', error.message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -47,155 +38,74 @@ export default function WelcomeScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <LinearGradient
-        colors={['#060612', '#0a0a1a', '#060612']}
+        colors={['#060612', '#1a1a2e', '#060612']}
         style={StyleSheet.absoluteFill}
       />
 
-      <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
-        <Text style={styles.skipText}>Skip</Text>
-      </TouchableOpacity>
-
-      <ScrollView 
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.logoSection}>
-          <LinearGradient
-            colors={['#9BFF32', '#3DEEFF']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.logoCircle}
-          >
-            <Text style={styles.logoLetter}>C</Text>
-          </LinearGradient>
-          <Text style={styles.logoText}>CARDIYO</Text>
-          <View style={styles.divider} />
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        {/* Professional Logo */}
+        <View style={styles.logoContainer}>
+          <Svg width="120" height="120" viewBox="0 0 200 200">
+            <Defs>
+              <SvgLinearGradient id="gradient" x1="0" y1="0" x2="1" y2="1">
+                <Stop offset="0" stopColor="#9BFF32" />
+                <Stop offset="1" stopColor="#3DEEFF" />
+              </SvgLinearGradient>
+            </Defs>
+            <Rect x="30" y="60" width="140" height="90" rx="12" fill="url(#gradient)" opacity="0.2"/>
+            <Rect x="30" y="60" width="140" height="90" rx="12" fill="none" stroke="url(#gradient)" strokeWidth="3"/>
+            <Rect x="45" y="75" width="30" height="25" rx="4" fill="url(#gradient)"/>
+            <Path d="M 140 85 Q 145 80, 150 85 T 160 85" stroke="url(#gradient)" strokeWidth="2" fill="none" strokeLinecap="round"/>
+            <Path d="M 140 95 Q 145 90, 150 95 T 160 95" stroke="url(#gradient)" strokeWidth="2" fill="none" strokeLinecap="round"/>
+            <Path d="M 140 105 Q 145 100, 150 105 T 160 105" stroke="url(#gradient)" strokeWidth="2" fill="none" strokeLinecap="round"/>
+            <Circle cx="45" cy="120" r="2" fill="url(#gradient)"/>
+            <Circle cx="55" cy="120" r="2" fill="url(#gradient)"/>
+            <Circle cx="65" cy="120" r="2" fill="url(#gradient)"/>
+            <Circle cx="75" cy="120" r="2" fill="url(#gradient)"/>
+          </Svg>
         </View>
 
-        <View style={styles.heroSection}>
-          <Text style={styles.heroTitle}>
-            Maximize Your{'\n'}Credit Card Rewards
-          </Text>
-          <Text style={styles.heroSubtitle}>
-            Discover personalized offers and never miss{'\n'}a reward opportunity again
-          </Text>
-        </View>
+        <Text style={styles.brand}>Cardiyo</Text>
+        <Text style={styles.tagline}>Smart credit card management</Text>
 
-        <View style={styles.features}>
-          <View style={styles.feature}>
-            <LinearGradient
-              colors={['rgba(155, 255, 50, 0.15)', 'rgba(61, 238, 255, 0.15)']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.featureIcon}
-            >
-              <Ionicons name="location" size={24} color="#9BFF32" />
-            </LinearGradient>
-            <View style={styles.featureText}>
-              <Text style={styles.featureTitle}>Location-Based Offers</Text>
-              <Text style={styles.featureDescription}>
-                Get deals near you in real-time
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.feature}>
-            <LinearGradient
-              colors={['rgba(255, 151, 235, 0.15)', 'rgba(217, 148, 255, 0.15)']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.featureIcon}
-            >
-              <Ionicons name="wallet" size={24} color="#FF97EB" />
-            </LinearGradient>
-            <View style={styles.featureText}>
-              <Text style={styles.featureTitle}>All Cards, One Place</Text>
-              <Text style={styles.featureDescription}>
-                Manage all your credit cards together
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.feature}>
-            <LinearGradient
-              colors={['rgba(255, 239, 160, 0.15)', 'rgba(255, 169, 124, 0.15)']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.featureIcon}
-            >
-              <Ionicons name="trophy" size={24} color="#FFEFA0" />
-            </LinearGradient>
-            <View style={styles.featureText}>
-              <Text style={styles.featureTitle}>Maximize Rewards</Text>
-              <Text style={styles.featureDescription}>
-                Earn more points on every purchase
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.phoneSection}>
-          <Text style={styles.label}>Enter your mobile number</Text>
-          <View style={styles.phoneContainer}>
+        <View style={styles.form}>
+          <Text style={styles.label}>Phone Number</Text>
+          <View style={styles.inputContainer}>
             <View style={styles.countryCode}>
-              <Text style={styles.flag}>🇦🇪</Text>
-              <Text style={styles.code}>+971</Text>
-              <Ionicons name="chevron-down" size={16} color="#888" />
+              <Text style={styles.countryCodeText}>🇦🇪 +971</Text>
             </View>
             <TextInput
-              style={styles.phoneInput}
+              style={styles.input}
               placeholder="50 123 4567"
-              placeholderTextColor="#888"
+              placeholderTextColor="#6B7280"
+              keyboardType="phone-pad"
               value={phoneNumber}
               onChangeText={setPhoneNumber}
-              keyboardType="phone-pad"
               maxLength={9}
-              editable={!loading}
             />
           </View>
-          
-          <View style={styles.devNote}>
-            <Ionicons name="information-circle" size={16} color="#9BFF32" />
-            <Text style={styles.devNoteText}>
-              Development mode: Check terminal for OTP code
-            </Text>
-          </View>
-        </View>
 
-        <TouchableOpacity
-          style={[
-            styles.continueButton,
-            (phoneNumber.length < 9 || loading) && styles.continueButtonDisabled
-          ]}
-          disabled={phoneNumber.length < 9 || loading}
-          onPress={handleContinue}
-        >
-          <LinearGradient
-            colors={
-              phoneNumber.length >= 9 && !loading
-                ? ['#9BFF32', '#3DEEFF']
-                : ['#383841', '#6A6A71']
-            }
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.continueGradient}
+          <TouchableOpacity
+            style={styles.button}
+            onPress={handleContinue}
+            disabled={loading}
           >
-            {loading ? (
-              <ActivityIndicator color="#060612" />
-            ) : (
-              <>
-                <Text style={styles.continueText}>Continue</Text>
-                <Ionicons name="arrow-forward" size={20} color="#060612" />
-              </>
-            )}
-          </LinearGradient>
-        </TouchableOpacity>
+            <LinearGradient
+              colors={['#9BFF32', '#3DEEFF']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.buttonGradient}
+            >
+              <Text style={styles.buttonText}>
+                {loading ? 'Sending OTP...' : 'Continue'}
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
 
-        <Text style={styles.terms}>
-          By continuing, you agree to our{' '}
-          <Text style={styles.termsLink}>Terms of Service</Text> and{' '}
-          <Text style={styles.termsLink}>Privacy Policy</Text>
-        </Text>
+          <Text style={styles.terms}>
+            By continuing, you agree to our Terms of Service and Privacy Policy
+          </Text>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -203,36 +113,18 @@ export default function WelcomeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  skipButton: { position: 'absolute', top: 60, right: 24, zIndex: 10, backgroundColor: 'rgba(255, 255, 255, 0.1)', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 },
-  skipText: { color: '#888', fontSize: 14, fontWeight: '600' },
-  content: { padding: 24, paddingTop: 120 },
-  logoSection: { alignItems: 'center', marginBottom: 48 },
-  logoCircle: { width: 80, height: 80, borderRadius: 40, justifyContent: 'center', alignItems: 'center', marginBottom: 16, elevation: 8, shadowColor: '#9BFF32', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 12 },
-  logoLetter: { fontSize: 48, fontWeight: 'bold', color: '#060612' },
-  logoText: { fontSize: 32, fontWeight: 'bold', color: '#F9F9F9', letterSpacing: 3, marginBottom: 8 },
-  divider: { width: 100, height: 3, backgroundColor: '#9BFF32', borderRadius: 2, transform: [{ skewX: '-10deg' }] },
-  heroSection: { marginBottom: 40 },
-  heroTitle: { fontSize: 36, fontWeight: 'bold', color: '#F9F9F9', marginBottom: 16, lineHeight: 44 },
-  heroSubtitle: { fontSize: 16, color: '#888', lineHeight: 24 },
-  features: { marginBottom: 40, gap: 20 },
-  feature: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  featureIcon: { width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center' },
-  featureText: { flex: 1 },
-  featureTitle: { fontSize: 16, fontWeight: '600', color: '#F9F9F9', marginBottom: 4 },
-  featureDescription: { fontSize: 14, color: '#888', lineHeight: 20 },
-  phoneSection: { marginBottom: 24 },
-  label: { fontSize: 14, color: '#F9F9F9', marginBottom: 12, fontWeight: '600' },
-  phoneContainer: { flexDirection: 'row', backgroundColor: '#1a1a1a', borderRadius: 16, borderWidth: 1, borderColor: '#333', overflow: 'hidden' },
-  countryCode: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 18, borderRightWidth: 1, borderRightColor: '#333', gap: 8 },
-  flag: { fontSize: 20 },
-  code: { fontSize: 16, color: '#F9F9F9', fontWeight: '600' },
-  phoneInput: { flex: 1, paddingHorizontal: 16, fontSize: 16, color: '#F9F9F9' },
-  devNote: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: 'rgba(155, 255, 50, 0.1)', borderRadius: 8 },
-  devNoteText: { fontSize: 12, color: '#9BFF32' },
-  continueButton: { borderRadius: 16, overflow: 'hidden', marginBottom: 16 },
-  continueButtonDisabled: { opacity: 0.5 },
-  continueGradient: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 20, gap: 12 },
-  continueText: { fontSize: 18, fontWeight: '600', color: '#060612' },
-  terms: { fontSize: 12, color: '#888', textAlign: 'center', lineHeight: 18 },
-  termsLink: { color: '#9BFF32', textDecorationLine: 'underline' },
+  content: { flex: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 60 },
+  logoContainer: { alignItems: 'center', marginBottom: 24 },
+  brand: { fontSize: 48, fontWeight: '800', color: '#FFFFFF', textAlign: 'center', marginBottom: 8, letterSpacing: -1 },
+  tagline: { fontSize: 16, color: '#9CA3AF', textAlign: 'center', marginBottom: 64 },
+  form: { width: '100%' },
+  label: { fontSize: 14, fontWeight: '600', color: '#FFFFFF', marginBottom: 12, letterSpacing: 0.5 },
+  inputContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 24 },
+  countryCode: { backgroundColor: '#1a1a2e', paddingHorizontal: 16, paddingVertical: 18, borderRadius: 12, marginRight: 12 },
+  countryCodeText: { fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
+  input: { flex: 1, backgroundColor: '#1a1a2e', paddingHorizontal: 20, paddingVertical: 18, borderRadius: 12, fontSize: 16, color: '#FFFFFF', fontWeight: '500' },
+  button: { borderRadius: 12, overflow: 'hidden', marginBottom: 24, elevation: 8, shadowColor: '#9BFF32', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 12 },
+  buttonGradient: { paddingVertical: 18, alignItems: 'center' },
+  buttonText: { fontSize: 18, fontWeight: '700', color: '#060612', letterSpacing: 0.5 },
+  terms: { fontSize: 12, color: '#6B7280', textAlign: 'center', lineHeight: 18 },
 });

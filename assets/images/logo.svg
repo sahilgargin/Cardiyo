@@ -1,0 +1,28 @@
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Gradient definition -->
+  <defs>
+    <linearGradient id="cardiyoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#9BFF32;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#3DEEFF;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Card shape with rounded corners -->
+  <rect x="30" y="60" width="140" height="90" rx="12" fill="url(#cardiyoGradient)" opacity="0.2"/>
+  <rect x="30" y="60" width="140" height="90" rx="12" fill="none" stroke="url(#cardiyoGradient)" stroke-width="3"/>
+  
+  <!-- Chip -->
+  <rect x="45" y="75" width="30" height="25" rx="4" fill="url(#cardiyoGradient)"/>
+  <rect x="48" y="78" width="24" height="19" rx="2" fill="#060612" opacity="0.3"/>
+  
+  <!-- Card waves/signal -->
+  <path d="M 140 85 Q 145 80, 150 85 T 160 85" stroke="url(#cardiyoGradient)" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <path d="M 140 95 Q 145 90, 150 95 T 160 95" stroke="url(#cardiyoGradient)" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <path d="M 140 105 Q 145 100, 150 105 T 160 105" stroke="url(#cardiyoGradient)" stroke-width="2" fill="none" stroke-linecap="round"/>
+  
+  <!-- Dots for card number -->
+  <circle cx="45" cy="120" r="2" fill="url(#cardiyoGradient)"/>
+  <circle cx="55" cy="120" r="2" fill="url(#cardiyoGradient)"/>
+  <circle cx="65" cy="120" r="2" fill="url(#cardiyoGradient)"/>
+  <circle cx="75" cy="120" r="2" fill="url(#cardiyoGradient)"/>
+</svg>

@@ -1,52 +1,54 @@
-import * as Location from 'expo-location';
-import { getAreaFromCoordinates, Area } from './areas';
+import { db, auth } from '../firebaseConfig';
+import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 
-export interface UserLocation {
-  latitude: number;
-  longitude: number;
+export interface Area {
+  id: string;
+  name: string;
   city: string;
   country: string;
-  area?: Area;
+  lat: number;
+  lng: number;
 }
 
-export async function requestLocationPermission(): Promise<boolean> {
+export async function detectUserArea(): Promise<string> {
   try {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    return status === 'granted';
+    const user = auth.currentUser;
+    
+    if (user) {
+      // Check if user has saved area
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      
+      if (userDoc.exists() && userDoc.data().area) {
+        console.log('📍 Using saved area:', userDoc.data().area);
+        return userDoc.data().area;
+      }
+    }
+    
+    // Default to Downtown Dubai for new users
+    console.log('📍 Using default area: Downtown Dubai');
+    return 'Downtown Dubai';
   } catch (error) {
-    console.error('Error requesting location permission:', error);
-    return false;
+    console.error('Error detecting area:', error);
+    return 'Dubai';
   }
 }
 
-export async function getUserLocation(): Promise<UserLocation | null> {
+export async function getAllAreas(): Promise<Area[]> {
   try {
-    const hasPermission = await requestLocationPermission();
-    if (!hasPermission) {
-      return null;
-    }
-
-    const location = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.Balanced,
-    });
-
-    const { latitude, longitude } = location.coords;
-
-    const geocode = await Location.reverseGeocodeAsync({ latitude, longitude });
-    const place = geocode[0];
+    const areasSnapshot = await getDocs(collection(db, 'areas'));
     
-    // Get area from database
-    const area = await getAreaFromCoordinates(latitude, longitude);
-
-    return {
-      latitude,
-      longitude,
-      city: place?.city || place?.subregion || 'Dubai',
-      country: place?.country || 'UAE',
-      area,
-    };
+    const areas = areasSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as Area[];
+    
+    // Sort by name
+    areas.sort((a, b) => a.name.localeCompare(b.name));
+    
+    console.log(`📍 Loaded ${areas.length} areas from Firestore`);
+    return areas;
   } catch (error) {
-    console.error('Error getting location:', error);
-    return null;
+    console.error('Error getting areas:', error);
+    return [];
   }
 }
