@@ -92,22 +92,22 @@ export default function ProfileScreen() {
           </Text>
 
           {/* Gmail Sync */}
-          <TouchableOpacity
+         <TouchableOpacity
             style={[styles.menuItem, { backgroundColor: branding.surfaceColor }]}
             onPress={() => router.push('/email-settings')}
           >
-            <View style={[styles.menuIcon, { backgroundColor: '#9BFF3220' }]}>
-              <Ionicons name="mail" size={24} color="#9BFF32" />
+            <View style={[styles.menuIcon, { backgroundColor: branding.secondaryColor + '20' }]}>
+              <Ionicons name="mail" size={24} color={branding.secondaryColor} />
             </View>
-            <View style={styles.menuContent}>
+            <View style={styles.menuInfo}>
               <Text style={[styles.menuTitle, { color: branding.textPrimary }]}>
                 Gmail Sync
               </Text>
               <Text style={[styles.menuSubtitle, { color: branding.textSecondary }]}>
-                Connect email for transaction tracking
+                Auto-detect transactions from emails
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={branding.textSecondary} />
+            <Ionicons name="chevron-forward" size={24} color={branding.textSecondary} />
           </TouchableOpacity>
 
           {/* Analytics */}

@@ -1,5 +1,5 @@
 import { db, auth } from '../firebaseConfig';
-import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, setDoc } from 'firebase/firestore';
 
 export interface Area {
   id: string;
@@ -15,7 +15,6 @@ export async function detectUserArea(): Promise<string> {
     const user = auth.currentUser;
     
     if (user) {
-      // Check if user has saved area
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       
       if (userDoc.exists() && userDoc.data().area) {
@@ -23,13 +22,13 @@ export async function detectUserArea(): Promise<string> {
         return userDoc.data().area;
       }
     }
-    
-    // Default to Downtown Dubai for new users
-    console.log('📍 Using default area: Downtown Dubai');
-    return 'Downtown Dubai';
+
+    // Return default prompt to select area
+    console.log('📍 No saved area, prompting user to select');
+    return 'Tap to select your area';
   } catch (error) {
     console.error('Error detecting area:', error);
-    return 'Dubai';
+    return 'Tap to select your area';
   }
 }
 
@@ -42,10 +41,9 @@ export async function getAllAreas(): Promise<Area[]> {
       ...doc.data()
     })) as Area[];
     
-    // Sort by name
     areas.sort((a, b) => a.name.localeCompare(b.name));
     
-    console.log(`📍 Loaded ${areas.length} areas from Firestore`);
+    console.log(`📍 Loaded ${areas.length} areas`);
     return areas;
   } catch (error) {
     console.error('Error getting areas:', error);

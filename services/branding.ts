@@ -1,5 +1,5 @@
 import { db } from '../firebaseConfig';
-import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 
 export interface AppBranding {
   primaryColor: string;
@@ -45,7 +45,6 @@ export async function getAppBranding(): Promise<AppBranding> {
     console.error('Error loading branding:', error);
   }
 
-  // Default branding
   return {
     primaryColor: '#9BFF32',
     secondaryColor: '#3DEEFF',

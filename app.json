@@ -5,11 +5,25 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#060612"
+    },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.cardiyo.app"
+      "bundleIdentifier": "com.cardiyo.app",
+      "infoPlist": {
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": ["cardiyo"]
+          }
+        ]
+      }
     },
     "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#060612"
+      },
       "package": "com.cardiyo.app",
       "permissions": [
         "READ_SMS",
