@@ -76,6 +76,13 @@ export default function WalletScreen() {
         >
           <Ionicons name="add" size={24} color="#060612" />
         </TouchableOpacity>
+        # In wallet.tsx, add this button next to the add button in header:
+<TouchableOpacity
+  style={[styles.scanButton, { backgroundColor: branding.secondaryColor }]}
+  onPress={() => router.push('/scan-card')}
+>
+  <Ionicons name="qr-code" size={24} color="#060612" />
+</TouchableOpacity>
       </View>
 
       {/* Filter Tabs */}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Switch } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Switch, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -35,34 +35,17 @@ export default function EmailSettingsScreen() {
       const result = await connectGmail();
       
       if (result.authUrl) {
+        await Linking.openURL(result.authUrl);
+        
         Alert.alert(
-          'Connect Gmail',
-          'Opening browser to connect your Gmail account...',
-          [
-            {
-              text: 'Cancel',
-              style: 'cancel',
-              onPress: () => setConnecting(false)
-            },
-            {
-              text: 'Continue',
-              onPress: async () => {
-                // Open auth URL in browser
-                const { Linking } = await import('react-native');
-                await Linking.openURL(result.authUrl);
-                
-                // Wait a bit then reload
-                setTimeout(async () => {
-                  await loadData();
-                  setConnecting(false);
-                }, 3000);
-              }
-            }
-          ]
+          'Gmail Connection',
+          'After authorizing in the browser, come back and tap "Sync Now" to import your transactions.',
+          [{ text: 'OK', onPress: () => setConnecting(false) }]
         );
       }
     } catch (error: any) {
-      Alert.alert('Error', error.message);
+      console.error('Connect error:', error);
+      Alert.alert('Error', error.message || 'Failed to connect Gmail');
       setConnecting(false);
     }
   }
@@ -74,30 +57,20 @@ export default function EmailSettingsScreen() {
       
       Alert.alert(
         'Sync Complete!',
-        `Scanned: ${result.messagesScanned} emails\nTransactions: ${result.transactionsFound}\nTransfers: ${result.transfersFound}\nNew Cards: ${result.newCardsDetected}`,
-        [{ text: 'OK', onPress: () => router.back() }]
+        `Emails scanned: ${result.messagesScanned}\nTransactions: ${result.transactionsFound}\nTransfers: ${result.transfersFound}\nDuplicates skipped: ${result.duplicatesSkipped}`,
+        [{ text: 'OK' }]
       );
       
       await loadData();
     } catch (error: any) {
-      Alert.alert('Sync Failed', error.message);
+      Alert.alert('Sync Failed', error.message || 'Failed to sync');
     } finally {
       setSyncing(false);
     }
   }
 
-  async function handleToggleAutoSync(value: boolean) {
-    setAutoSync(value);
-    // Save to Firestore
-    // TODO: Implement auto-sync settings
-  }
-
   if (!branding) {
-    return (
-      <View style={styles.loading}>
-        <ActivityIndicator size="large" color="#9BFF32" />
-      </View>
-    );
+    return <View style={styles.loading}><ActivityIndicator size="large" color="#9BFF32" /></View>;
   }
 
   return (
@@ -108,52 +81,30 @@ export default function EmailSettingsScreen() {
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color={branding.textPrimary} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: branding.textPrimary }]}>
-          Gmail Sync
-        </Text>
+        <Text style={[styles.headerTitle, { color: branding.textPrimary }]}>Gmail Sync</Text>
         <View style={{ width: 24 }} />
       </View>
 
       <View style={styles.content}>
-        {/* Connection Status */}
         <View style={[styles.card, { backgroundColor: branding.surfaceColor }]}>
           <View style={styles.statusHeader}>
-            <View style={[
-              styles.statusIcon,
-              { backgroundColor: connected ? branding.success + '20' : branding.warning + '20' }
-            ]}>
-              <Ionicons 
-                name={connected ? "checkmark-circle" : "mail"} 
-                size={32} 
-                color={connected ? branding.success : branding.warning} 
-              />
+            <View style={[styles.statusIcon, { backgroundColor: connected ? branding.success + '20' : branding.warning + '20' }]}>
+              <Ionicons name={connected ? "checkmark-circle" : "mail"} size={32} color={connected ? branding.success : branding.warning} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.statusTitle, { color: branding.textPrimary }]}>
                 {connected ? 'Gmail Connected' : 'Not Connected'}
               </Text>
               <Text style={[styles.statusSubtitle, { color: branding.textSecondary }]}>
-                {connected 
-                  ? syncStatus?.email || 'Automatic transaction detection'
-                  : 'Connect your Gmail to auto-detect transactions'
-                }
+                {connected ? 'Automatic transaction detection' : 'Connect Gmail to auto-detect transactions'}
               </Text>
             </View>
           </View>
 
           {!connected ? (
-            <TouchableOpacity 
-              style={styles.connectButton} 
-              onPress={handleConnect}
-              disabled={connecting}
-            >
-              <LinearGradient 
-                colors={branding.primaryGradient.colors as [string, string]} 
-                style={styles.connectButtonGradient}
-              >
-                {connecting ? (
-                  <ActivityIndicator color="#060612" />
-                ) : (
+            <TouchableOpacity style={styles.connectButton} onPress={handleConnect} disabled={connecting}>
+              <LinearGradient colors={branding.primaryGradient.colors as [string, string]} style={styles.connectButtonGradient}>
+                {connecting ? <ActivityIndicator color="#060612" /> : (
                   <>
                     <Ionicons name="logo-google" size={24} color="#060612" />
                     <Text style={styles.connectButtonText}>Connect Gmail</Text>
@@ -162,25 +113,17 @@ export default function EmailSettingsScreen() {
               </LinearGradient>
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity 
-              style={styles.syncButton} 
-              onPress={handleSync}
-              disabled={syncing}
-            >
+            <TouchableOpacity style={styles.syncButton} onPress={handleSync} disabled={syncing}>
               <View style={styles.syncButtonContent}>
                 {syncing ? (
                   <>
                     <ActivityIndicator color={branding.primaryColor} />
-                    <Text style={[styles.syncButtonText, { color: branding.primaryColor }]}>
-                      Syncing...
-                    </Text>
+                    <Text style={[styles.syncButtonText, { color: branding.primaryColor }]}>Syncing...</Text>
                   </>
                 ) : (
                   <>
                     <Ionicons name="refresh" size={24} color={branding.primaryColor} />
-                    <Text style={[styles.syncButtonText, { color: branding.primaryColor }]}>
-                      Sync Now
-                    </Text>
+                    <Text style={[styles.syncButtonText, { color: branding.primaryColor }]}>Sync Now</Text>
                   </>
                 )}
               </View>
@@ -188,76 +131,21 @@ export default function EmailSettingsScreen() {
           )}
         </View>
 
-        {/* Stats */}
         {connected && syncStatus && (
           <View style={[styles.card, { backgroundColor: branding.surfaceColor }]}>
-            <Text style={[styles.cardTitle, { color: branding.textPrimary }]}>
-              Sync Statistics
-            </Text>
-            
+            <Text style={[styles.cardTitle, { color: branding.textPrimary }]}>Statistics</Text>
             <View style={styles.statsGrid}>
               <View style={styles.statItem}>
-                <Text style={[styles.statValue, { color: branding.textPrimary }]}>
-                  {syncStatus.transactionsFound || 0}
-                </Text>
-                <Text style={[styles.statLabel, { color: branding.textSecondary }]}>
-                  Transactions
-                </Text>
+                <Text style={[styles.statValue, { color: branding.textPrimary }]}>{syncStatus.transactionsFound || 0}</Text>
+                <Text style={[styles.statLabel, { color: branding.textSecondary }]}>Transactions</Text>
               </View>
-
               <View style={styles.statItem}>
-                <Text style={[styles.statValue, { color: branding.textPrimary }]}>
-                  {syncStatus.messagesScanned || 0}
-                </Text>
-                <Text style={[styles.statLabel, { color: branding.textSecondary }]}>
-                  Emails Scanned
-                </Text>
-              </View>
-
-              <View style={styles.statItem}>
-                <Text style={[styles.statValue, { color: branding.textPrimary }]}>
-                  {syncStatus.lastSync 
-                    ? new Date(syncStatus.lastSync).toLocaleDateString()
-                    : 'Never'
-                  }
-                </Text>
-                <Text style={[styles.statLabel, { color: branding.textSecondary }]}>
-                  Last Sync
-                </Text>
+                <Text style={[styles.statValue, { color: branding.textPrimary }]}>{syncStatus.messagesScanned || 0}</Text>
+                <Text style={[styles.statLabel, { color: branding.textSecondary }]}>Emails</Text>
               </View>
             </View>
           </View>
         )}
-
-        {/* Auto Sync Toggle */}
-        {connected && (
-          <View style={[styles.card, { backgroundColor: branding.surfaceColor }]}>
-            <View style={styles.row}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.cardTitle, { color: branding.textPrimary }]}>
-                  Automatic Sync
-                </Text>
-                <Text style={[styles.cardSubtitle, { color: branding.textSecondary }]}>
-                  Check for new transactions daily
-                </Text>
-              </View>
-              <Switch
-                value={autoSync}
-                onValueChange={handleToggleAutoSync}
-                trackColor={{ false: '#3e3e3e', true: branding.primaryColor }}
-                thumbColor={autoSync ? '#FFFFFF' : '#f4f3f4'}
-              />
-            </View>
-          </View>
-        )}
-
-        {/* Info */}
-        <View style={[styles.infoCard, { backgroundColor: branding.primaryColor + '20' }]}>
-          <Ionicons name="information-circle" size={24} color={branding.primaryColor} />
-          <Text style={[styles.infoText, { color: branding.textPrimary }]}>
-            We scan emails from ADIB, Emirates NBD, FAB, Mashreq, wio, and Citi to automatically detect your transactions and transfers.
-          </Text>
-        </View>
       </View>
     </View>
   );
@@ -281,12 +169,8 @@ const styles = StyleSheet.create({
   syncButtonContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 16, gap: 12 },
   syncButtonText: { fontSize: 18, fontWeight: 'bold' },
   cardTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 16 },
-  cardSubtitle: { fontSize: 14 },
   statsGrid: { flexDirection: 'row', justifyContent: 'space-around' },
   statItem: { alignItems: 'center' },
   statValue: { fontSize: 24, fontWeight: 'bold', marginBottom: 4 },
   statLabel: { fontSize: 12 },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  infoCard: { padding: 16, borderRadius: 12, flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
-  infoText: { flex: 1, fontSize: 14, lineHeight: 20 },
 });

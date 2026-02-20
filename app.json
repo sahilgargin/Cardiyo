@@ -15,7 +15,9 @@
       "infoPlist": {
         "CFBundleURLTypes": [
           {
-            "CFBundleURLSchemes": ["cardiyo"]
+            "CFBundleURLSchemes": [
+              "cardiyo"
+            ]
           }
         ]
       }
@@ -30,6 +32,9 @@
         "RECEIVE_SMS"
       ]
     },
-    "scheme": "cardiyo"
+    "scheme": "cardiyo",
+    "plugins": [
+      "expo-barcode-scanner"
+    ]
   }
 }

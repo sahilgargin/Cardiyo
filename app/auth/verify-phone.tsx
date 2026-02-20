@@ -28,12 +28,12 @@ export default function VerifyPhoneScreen() {
       
       console.log('Login result:', result);
 
+      // Only show profile screen if truly needs profile
       if (result.needsProfile) {
-        console.log('Needs profile');
+        console.log('New user - showing profile setup');
         router.replace('/auth/profile-setup');
       } else {
-        console.log('Profile complete, going to app');
-        // Skip email verification, go straight to app
+        console.log('Existing user - going to app');
         router.replace('/(tabs)');
       }
     } catch (error: any) {

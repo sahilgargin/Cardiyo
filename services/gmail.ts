@@ -1,16 +1,36 @@
 import { auth, db } from '../firebaseConfig';
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
+
+const FUNCTIONS_BASE_URL = 'https://us-central1-my-vibe-app-af0db.cloudfunctions.net';
 
 export async function connectGmail(): Promise<{ authUrl: string }> {
   const user = auth.currentUser;
   if (!user) throw new Error('Not authenticated');
 
-  const initiateAuth = httpsCallable(functions, 'initiateGmailAuth');
-  const result = await initiateAuth();
-  
-  return result.data as { authUrl: string };
+  try {
+    const idToken = await user.getIdToken();
+    
+    const response = await fetch(`${FUNCTIONS_BASE_URL}/initiateGmailAuth`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({ data: {} })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Function error:', errorText);
+      throw new Error('Failed to initiate Gmail auth. Please check if Cloud Functions are deployed.');
+    }
+
+    const result = await response.json();
+    return result.result || result;
+  } catch (error: any) {
+    console.error('Connect Gmail error:', error);
+    throw new Error(error.message || 'Failed to connect Gmail');
+  }
 }
 
 export async function syncGmail(daysBack: number = 30): Promise<{
@@ -24,10 +44,35 @@ export async function syncGmail(daysBack: number = 30): Promise<{
   const user = auth.currentUser;
   if (!user) throw new Error('Not authenticated');
 
-  const sync = httpsCallable(functions, 'syncGmail');
-  const result = await sync({ daysBack });
-  
-  return result.data as any;
+  try {
+    const idToken = await user.getIdToken();
+    
+    const response = await fetch(`${FUNCTIONS_BASE_URL}/syncGmail`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({ data: { daysBack } })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Sync error:', errorText);
+      
+      if (errorText.includes('not-found')) {
+        throw new Error('No Gmail connection found. Please connect Gmail first.');
+      }
+      
+      throw new Error('Failed to sync Gmail. Please try again.');
+    }
+
+    const result = await response.json();
+    return result.result || result;
+  } catch (error: any) {
+    console.error('Sync Gmail error:', error);
+    throw new Error(error.message || 'Failed to sync Gmail');
+  }
 }
 
 export async function getGmailSyncStatus(): Promise<{
