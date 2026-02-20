@@ -1,5 +1,5 @@
 import { db } from '../firebaseConfig';
-import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 
 export interface AppBranding {
   primaryColor: string;
@@ -8,183 +8,81 @@ export interface AppBranding {
   surfaceColor: string;
   textPrimary: string;
   textSecondary: string;
+  textTertiary: string;
   success: string;
   warning: string;
   error: string;
+  info: string;
   primaryGradient: {
     colors: string[];
     start: { x: number; y: number };
     end: { x: number; y: number };
   };
-  logo: string;
-  appName: string;
+  darkGradient: {
+    colors: string[];
+    start: { x: number; y: number };
+    end: { x: number; y: number };
+  };
+  brandName: string;
   tagline: string;
 }
 
-export interface BankBranding {
+export interface Category {
   id: string;
   name: string;
-  shortName: string;
-  logo: string;
-  primaryColor: string;
-  gradient: string[];
-  country: string;
+  icon: string;
+  color: string;
 }
 
-export interface CardBranding {
-  gradient: string[];
-  textColor: string;
-  chipColor: string;
-  accentColor: string;
-  networkLogo: string;
-  pattern?: string;
-}
-
-// Cache for branding data
-let appBrandingCache: AppBranding | null = null;
-let bankBrandingCache: Map<string, BankBranding> = new Map();
-let cardBrandingCache: Map<string, CardBranding> = new Map();
-
-/**
- * Get app-wide branding from Firestore
- */
 export async function getAppBranding(): Promise<AppBranding> {
   try {
-    // Return cache if available
-    if (appBrandingCache) {
-      return appBrandingCache;
-    }
-
     const brandingDoc = await getDoc(doc(db, 'config', 'branding'));
     
     if (brandingDoc.exists()) {
-      appBrandingCache = brandingDoc.data() as AppBranding;
-      return appBrandingCache;
+      return brandingDoc.data() as AppBranding;
     }
-
-    // Fallback to default if not in Firestore
-    return getDefaultBranding();
   } catch (error) {
-    console.error('Error fetching app branding:', error);
-    return getDefaultBranding();
+    console.error('Error loading branding:', error);
   }
-}
 
-/**
- * Get bank branding from Firestore
- */
-export async function getBankBranding(bankId: string): Promise<BankBranding | null> {
-  try {
-    // Check cache
-    if (bankBrandingCache.has(bankId)) {
-      return bankBrandingCache.get(bankId)!;
-    }
-
-    const bankDoc = await getDoc(doc(db, 'config', 'banks', 'items', bankId));
-    
-    if (bankDoc.exists()) {
-      const branding = bankDoc.data() as BankBranding;
-      bankBrandingCache.set(bankId, branding);
-      return branding;
-    }
-
-    return null;
-  } catch (error) {
-    console.error('Error fetching bank branding:', error);
-    return null;
-  }
-}
-
-/**
- * Get all banks branding
- */
-export async function getAllBanksBranding(): Promise<BankBranding[]> {
-  try {
-    const banksSnapshot = await getDocs(collection(db, 'config', 'banks', 'items'));
-    
-    const banks: BankBranding[] = [];
-    banksSnapshot.forEach(doc => {
-      const branding = { id: doc.id, ...doc.data() } as BankBranding;
-      bankBrandingCache.set(doc.id, branding);
-      banks.push(branding);
-    });
-
-    return banks;
-  } catch (error) {
-    console.error('Error fetching all banks branding:', error);
-    return [];
-  }
-}
-
-/**
- * Get card branding from Firestore
- */
-export async function getCardBranding(cardId: string): Promise<CardBranding> {
-  try {
-    // Check cache
-    if (cardBrandingCache.has(cardId)) {
-      return cardBrandingCache.get(cardId)!;
-    }
-
-    const cardDoc = await getDoc(doc(db, 'branding', 'cards', 'items', cardId));
-    
-    if (cardDoc.exists()) {
-      const branding = cardDoc.data() as CardBranding;
-      cardBrandingCache.set(cardId, branding);
-      return branding;
-    }
-
-    // Return default if not found
-    return getDefaultCardBranding();
-  } catch (error) {
-    console.error('Error fetching card branding:', error);
-    return getDefaultCardBranding();
-  }
-}
-
-/**
- * Clear branding cache (call this when branding is updated)
- */
-export function clearBrandingCache() {
-  appBrandingCache = null;
-  bankBrandingCache.clear();
-  cardBrandingCache.clear();
-}
-
-/**
- * Default app branding (fallback)
- */
-function getDefaultBranding(): AppBranding {
   return {
     primaryColor: '#9BFF32',
     secondaryColor: '#3DEEFF',
     backgroundColor: '#060612',
-    surfaceColor: '#1a1a1a',
+    surfaceColor: '#1a1a2e',
     textPrimary: '#FFFFFF',
-    textSecondary: '#999999',
-    success: '#9BFF32',
-    warning: '#FFD93D',
-    error: '#FF6B6B',
+    textSecondary: '#9CA3AF',
+    textTertiary: '#6B7280',
+    success: '#10B981',
+    warning: '#F59E0B',
+    error: '#EF4444',
+    info: '#3B82F6',
     primaryGradient: {
       colors: ['#9BFF32', '#3DEEFF'],
       start: { x: 0, y: 0 },
       end: { x: 1, y: 0 }
     },
-    logo: '💳',
-    appName: 'Cardiyo',
-    tagline: 'Smart credit card tracking for UAE',
+    darkGradient: {
+      colors: ['#060612', '#1a1a2e', '#060612'],
+      start: { x: 0, y: 0 },
+      end: { x: 0, y: 1 }
+    },
+    brandName: 'Cardiyo',
+    tagline: 'Smart credit card management'
   };
 }
 
-/**
- * Default card branding (fallback)
- */
-function getDefaultCardBranding(): CardBranding {
-  return {
-    gradient: ['#1a1a1a', '#2a2a2a'],
-    textColor: '#FFFFFF',
-    chipColor: '#FFD700',
-    accentColor: '#9BFF32',
-    networkLogo: 'card',
-  };
+export async function getAllCategories(): Promise<Category[]> {
+  return [
+    { id: 'dining', name: 'Dining', icon: 'restaurant', color: '#FF6B6B' },
+    { id: 'groceries', name: 'Groceries', icon: 'cart', color: '#4ECDC4' },
+    { id: 'fuel', name: 'Fuel', icon: 'battery-charging', color: '#FFD93D' },
+    { id: 'shopping', name: 'Shopping', icon: 'bag', color: '#FF8B94' },
+    { id: 'entertainment', name: 'Entertainment', icon: 'game-controller', color: '#A8E6CF' },
+    { id: 'travel', name: 'Travel', icon: 'airplane', color: '#9BFF32' },
+    { id: 'transport', name: 'Transport', icon: 'car', color: '#95E1D3' },
+    { id: 'healthcare', name: 'Healthcare', icon: 'medical', color: '#FF6B9D' },
+    { id: 'utilities', name: 'Utilities', icon: 'flash', color: '#FFA07A' },
+    { id: 'education', name: 'Education', icon: 'school', color: '#98D8C8' },
+  ];
 }

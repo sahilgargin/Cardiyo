@@ -1,3 +1,4 @@
+cat > functions/src/index.ts << 'ENDOFFILE'
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {onRequest} from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
@@ -15,8 +16,6 @@ const BANK_PATTERNS: {[key: string]: string[]} = {
   "Emirates NBD": ["emiratesnbd.com", "emiratesnbd"],
   FAB: ["bankfab.com", "fab"],
   Mashreq: ["mashreq.com", "mashreqbank"],
-  wio: ["wio.io", "wiobank"],
-  Citi: ["citibank.ae", "citi.com"],
 };
 
 interface UserCard {
@@ -148,17 +147,6 @@ export const syncGmail = onCall<{daysBack?: number}>({secrets: [googleClientId, 
       ...doc.data(),
     }));
 
-    // Get existing transactions to avoid duplicates
-    const existingTxnsSnapshot = await db
-      .collection("transactions")
-      .where("userId", "==", userId)
-      .where("source", "==", "email")
-      .get();
-
-    const existingEmailIds = new Set(
-      existingTxnsSnapshot.docs.map((doc) => doc.data().emailId)
-    );
-
     const tokensSnapshot = await db
       .collection("users")
       .doc(userId)
@@ -203,19 +191,11 @@ export const syncGmail = onCall<{daysBack?: number}>({secrets: [googleClientId, 
 
     const messages = listResponse.data.messages || [];
     let transactionsFound = 0;
-    let transfersFound = 0;
-    let duplicatesSkipped = 0;
     let newCardsDetected = 0;
     const detectedCards: Array<{bankName: string; lastFour: string}> = [];
 
     for (const message of messages.slice(0, 50)) {
       try {
-        // Skip if already processed
-        if (existingEmailIds.has(message.id || "")) {
-          duplicatesSkipped++;
-          continue;
-        }
-
         const fullMessage = await gmail.users.messages.get({
           userId: "me",
           id: message.id || "",
@@ -226,11 +206,6 @@ export const syncGmail = onCall<{daysBack?: number}>({secrets: [googleClientId, 
         const from =
           headers.find(
             (h) => h.name?.toLowerCase() === "from"
-          )?.value || "";
-        
-        const subject =
-          headers.find(
-            (h) => h.name?.toLowerCase() === "subject"
           )?.value || "";
 
         let body = "";
@@ -253,31 +228,27 @@ export const syncGmail = onCall<{daysBack?: number}>({secrets: [googleClientId, 
           }
         }
 
-        const isTransfer = detectTransfer(body, subject);
-        const transaction = isTransfer 
-          ? parseTransfer(body, from, subject)
-          : parseTransaction(body, from);
+        const transaction = parseTransaction(body, from);
 
         if (transaction) {
           let matchedCard: UserCard | undefined = undefined;
           let needsCardSuggestion = false;
 
-          if (transaction.cardLastFour || transaction.accountLastFour) {
-            const lastFour = transaction.cardLastFour || transaction.accountLastFour;
+          if (transaction.cardLastFour) {
             matchedCard = userCards.find(
-              (card) => card.lastFourDigits === lastFour
+              (card) => card.lastFourDigits === transaction.cardLastFour
             );
 
             if (!matchedCard) {
               needsCardSuggestion = true;
               const alreadyDetected = detectedCards.some(
-                (c) => c.lastFour === lastFour && c.bankName === transaction.bankName
+                (c) => c.lastFour === transaction.cardLastFour && c.bankName === transaction.bankName
               );
 
               if (!alreadyDetected) {
                 detectedCards.push({
                   bankName: transaction.bankName,
-                  lastFour: lastFour,
+                  lastFour: transaction.cardLastFour,
                 });
                 newCardsDetected++;
               }
@@ -288,53 +259,29 @@ export const syncGmail = onCall<{daysBack?: number}>({secrets: [googleClientId, 
             ...transaction,
             userId,
             cardId: matchedCard?.id || null,
-            cardName: matchedCard?.cardName || "Unknown Card/Account",
+            cardName: matchedCard?.cardName || "Unknown Card",
             source: "email",
             emailId: message.id,
-            transactionType: isTransfer ? "account_transfer" : "spend",
-            includeInSpending: !isTransfer,
             needsCardSuggestion,
             suggestedCard: needsCardSuggestion ? {
               bankName: transaction.bankName,
-              lastFourDigits: transaction.cardLastFour || transaction.accountLastFour,
-              isAccount: !!transaction.accountLastFour,
+              lastFourDigits: transaction.cardLastFour,
             } : null,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
           });
 
-          if (isTransfer) {
-            transfersFound++;
-          } else {
-            transactionsFound++;
-          }
+          transactionsFound++;
         }
       } catch (error) {
         console.error("Error processing message:", error);
       }
     }
 
-    // Update sync status
-    await db
-      .collection("users")
-      .doc(userId)
-      .collection("sync")
-      .doc("gmail")
-      .set({
-        connected: true,
-        lastSync: admin.firestore.FieldValue.serverTimestamp(),
-        messagesScanned: messages.length,
-        transactionsFound,
-        transfersFound,
-        duplicatesSkipped,
-      }, {merge: true});
-
     return {
       success: true,
       messagesScanned: messages.length,
       transactionsFound,
-      transfersFound,
       newCardsDetected,
-      duplicatesSkipped,
       detectedCards,
     };
   } catch (error: any) {
@@ -342,122 +289,6 @@ export const syncGmail = onCall<{daysBack?: number}>({secrets: [googleClientId, 
     throw new HttpsError("internal", error.message);
   }
 });
-
-function detectTransfer(body: string, subject: string): boolean {
-  const transferKeywords = [
-    "transfer",
-    "transferred",
-    "sent",
-    "received",
-    "deposit",
-    "deposited",
-    "credited",
-    "debited from account",
-    "account transfer",
-    "fund transfer",
-    "money transfer",
-    "remittance",
-  ];
-
-  const text = (body + " " + subject).toLowerCase();
-  return transferKeywords.some((keyword) => text.includes(keyword));
-}
-
-function parseTransfer(body: string, from: string, subject: string): any | null {
-  let bankName = "";
-  for (const [bank, patterns] of Object.entries(BANK_PATTERNS)) {
-    if (patterns.some((p) => from.toLowerCase().includes(p))) {
-      bankName = bank;
-      break;
-    }
-  }
-
-  if (!bankName) return null;
-
-  const amountPatterns = [
-    /AED\s*(\d+(?:,\d{3})*\.?\d{0,2})/i,
-    /amount[:\s]+AED\s*(\d+(?:,\d{3})*\.?\d{0,2})/i,
-    /transferred[:\s]+AED\s*(\d+(?:,\d{3})*\.?\d{0,2})/i,
-    /(\d+(?:,\d{3})*\.?\d{2})\s*AED/i,
-  ];
-
-  let amount: number | null = null;
-  for (const pattern of amountPatterns) {
-    const match = body.match(pattern);
-    if (match) {
-      amount = parseFloat(match[1].replace(/,/g, ""));
-      break;
-    }
-  }
-
-  if (!amount) return null;
-
-  const accountPatterns = [
-    /account[:\s]+[*x]*(\d{4})/i,
-    /(?:from|to)\s+account[:\s]+[*x]*(\d{4})/i,
-    /A\/C[:\s]+[*x]*(\d{4})/i,
-    /[*x]{8,}(\d{4})/i,
-  ];
-
-  let accountLastFour: string | null = null;
-  for (const pattern of accountPatterns) {
-    const match = body.match(pattern);
-    if (match) {
-      accountLastFour = match[1];
-      break;
-    }
-  }
-
-  const isCredit = /(?:received|credited|deposit)/i.test(body + " " + subject);
-  const type = isCredit ? "credit" : "debit";
-
-  let merchant = "Account Transfer";
-  
-  const beneficiaryPatterns = [
-    /(?:to|beneficiary)[:\s]+([A-Z][A-Z\s]+?)(?:\s+on|\s+dated|\.|\n)/i,
-    /(?:from)[:\s]+([A-Z][A-Z\s]+?)(?:\s+on|\s+dated|\.|\n)/i,
-  ];
-
-  for (const pattern of beneficiaryPatterns) {
-    const match = body.match(pattern);
-    if (match) {
-      const name = match[1].trim();
-      merchant = `Transfer ${type === "credit" ? "from" : "to"} ${name.length > 20 ? name.substring(0, 20) + "..." : name}`;
-      break;
-    }
-  }
-
-  const datePatterns = [
-    /(?:on|dated?)\s+(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/i,
-    /(\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{4})/i,
-  ];
-
-  let transactionDate = new Date();
-  for (const pattern of datePatterns) {
-    const match = body.match(pattern);
-    if (match) {
-      try {
-        transactionDate = new Date(match[1]);
-      } catch (e) {
-        transactionDate = new Date();
-      }
-      break;
-    }
-  }
-
-  return {
-    amount,
-    merchant,
-    accountLastFour,
-    cardLastFour: null,
-    bankName,
-    currency: "AED",
-    type,
-    category: "Transfer",
-    isTransfer: true,
-    date: transactionDate,
-  };
-}
 
 function parseTransaction(body: string, from: string): any | null {
   let bankName = "";
@@ -498,10 +329,6 @@ function parseTransaction(body: string, from: string): any | null {
     const match = body.match(pattern);
     if (match) {
       merchant = match[1].trim();
-      // Truncate long merchant names
-      if (merchant.length > 30) {
-        merchant = merchant.substring(0, 30) + "...";
-      }
       break;
     }
   }
@@ -543,12 +370,10 @@ function parseTransaction(body: string, from: string): any | null {
     amount,
     merchant,
     cardLastFour: cardLastFour || null,
-    accountLastFour: null,
     bankName,
     currency: "AED",
     type: "debit",
     category: categorize(merchant),
-    isTransfer: false,
     date: transactionDate,
   };
 }
@@ -567,3 +392,4 @@ function categorize(merchant: string): string {
   if (/school|university|education|course|tuition/.test(m)) return "Education";
   return "Other";
 }
+ENDOFFILE
